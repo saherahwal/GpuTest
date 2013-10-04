@@ -1,1 +1,1 @@
-nvcc -o vectorAddTest -O3 -arch=compute_30 -code=sm_30 vectorAdd.cu -lboost_system -lboost_timer
+nvcc -o "$1.out" -O3 -arch=compute_30 -code=sm_30 $1 -lboost_system -lboost_timer
