@@ -56,7 +56,34 @@ def cholesky(matrix_x):
 
 
 def solve_fwd_bkwd(matrix_a, b):
-    pass 
+    """ solved Ax = b linear by using Cholesky decomposition
+    this assumes that matrix_a is symmetric and positive definite """
+    _L = cholesky(matrix_a) 
+    _U = transpose_matrix(_L) 
+    
+    n = len(b)
+    x = [0 for i in xrange(n)] 
+    y = [0 for i in xrange(n)]    
+
+    #forward solve _Ly = b
+    for i in xrange(n):
+        y[i] = b[i]
+        for j in xrange(i):
+	    y[i] -= _L[i][j] * y[j]
+	y[i] /= _L[i][i]
+
+    #backward solve _Ux = y
+    for i in xrange(n-1, -1, -1):
+	x[i] = y[i]
+        for j in xrange(i+1, n):
+            x[i] -= _U[i][j] * x[j]
+        x[i] /= _U[i][i]
+
+    return x
+
+    
+
+
 
 
 
@@ -74,14 +101,14 @@ def get_matrices( ind_v):
 
 
 
-
-
-
-
-
-
-
-
+def matrix_mult_vec(matrix_a, x):
+    """ multiply matrix matrix_a by vector x
+    """
+    m = len(matrix_a)
+    b = [0 for i in xrange(m)]
+    for i in xrange(m):
+        b[i] = dot_product(matrix_a[i], x)
+    return b
 
 
 
@@ -93,6 +120,9 @@ if __name__== "__main__":
     matrix_x =  [ [4,12,-16], [12, 37, -43], [-16, -43, 98]]
     print transpose_matrix(matrix_x)
     print cholesky(matrix_x)
+    x= solve_fwd_bkwd(matrix_x, [3,5,2])
+    print "x=", x
+    print "test=", matrix_mult_vec(matrix_x, x)
 
     
 
