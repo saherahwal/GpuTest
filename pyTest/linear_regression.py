@@ -73,6 +73,15 @@ def get_matrices( ind_v):
 
 
 
+def linear_regression( ind_v , b ):
+    """ 
+    ind_v: list of lists, where each element is a list of independent variable values [ [x0,y0,z0], [x1,y1,z1] ...]
+    b : list of values corresponding to each ind_v value
+    """
+    ## get matrices A and A_transpose
+    a, a_t = get_matrices( ind_v )
+    pass
+    
 
 
 
@@ -81,13 +90,7 @@ def get_matrices( ind_v):
 
 
 
-
-
-
-
-
-
-
+##### simple test #######
 
 if __name__== "__main__":
     matrix_x =  [ [4,12,-16], [12, 37, -43], [-16, -43, 98]]
