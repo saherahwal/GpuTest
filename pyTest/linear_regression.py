@@ -83,6 +83,22 @@ def solve_fwd_bkwd(matrix_a, b):
 
     
 
+
+
+def get_matrices( ind_v):
+    """
+    ind_v: list of lists, where each element is a list of independent variable values [ [x0,y0,z0], [x1,y1,z1] ... ]
+    
+    return matrix_a, matrix_a_t : where matrix_a_t is the transpose of the matrix_a
+    """
+    matrix_a = [ [1] + e for e in ind_v] ## add 1 elt to list to account for constant value in equations
+    matrix_a_t = transpose_matrix(matrix_a)
+    return (matrix_a, matrix_a_t)
+
+
+
+
+
 def matrix_mult_vec(matrix_a, x):
     """ multiply matrix matrix_a by vector x
     """
