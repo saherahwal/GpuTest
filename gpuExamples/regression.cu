@@ -60,11 +60,42 @@ __device__ void cholesky( Matrix A, Matrix L){
 } 
 
 
+
+
+
 /*
 * A,B: matrices to multiply
 * C: resulting matrix of A*B
 */
 __device__ void matrix_multiply( Matrix A, Matrix B, Matrix C){
+
+    //Block row and column
+    int row_block = blockIdx.y;
+    int col_block = blockIdx.x;
+
+    //each thread block computes submatrix of dimensions BLOCK_SIZE*BLOCK_SIZE
+    Matrix sub_c = get_sub_mtx(C, row_block, column_block);
+
+    // each element computes one element of sub matrix sub_c
+    // we accumulate the results in val
+    float val = 0;
+
+    // thread row and column
+    int row = threadIdx.y;
+    int col = threadIdx.x;
+
+
+    // loop the sub matrices of A and B required to compute the sub_c matrix
+    // note that this assumes A.n is a multiple of BLOCK_SIZE
+    for (int i = 0 ; i < (A.n / BLOCK_SIZE); ++i){
+        
+        // get sub-mtx sub_a of A and sub_b of B
+        Matrix sub_a = get_sub_mtx(A, row_block, i);
+        Matrix sub_b = get_sub_mtx(B, i, col_block); 
+        
+        //TODO complete kernel        
+    }
+    //TODO finish kerner matrix mult
     
 }  
 
@@ -77,8 +108,6 @@ __device__ void matrix_multiply( Matrix A, Matrix B, Matrix C){
 __global__ void linear_regression( Matrix I_vals, Matrix b, float *r) {
     
 }
-
-
 
 
 
