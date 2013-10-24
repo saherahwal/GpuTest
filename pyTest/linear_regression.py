@@ -1,4 +1,4 @@
-################################################################
+#################################################################
 # simple test library to implement linear regression
 #################################################################
 from math import sqrt
@@ -56,7 +56,58 @@ def cholesky(matrix_x):
 
 
 def solve_fwd_bkwd(matrix_a, b):
-    pass 
+    """ solved Ax = b linear by using Cholesky decomposition
+    this assumes that matrix_a is symmetric and positive definite """
+    _L = cholesky(matrix_a) 
+    _U = transpose_matrix(_L) 
+    
+    n = len(b)
+    x = [0 for i in xrange(n)] 
+    y = [0 for i in xrange(n)]    
+
+    #forward solve _Ly = b
+    for i in xrange(n):
+        y[i] = b[i]
+        for j in xrange(i):
+	    y[i] -= _L[i][j] * y[j]
+	y[i] /= _L[i][i]
+
+    #backward solve _Ux = y
+    for i in xrange(n-1, -1, -1):
+	x[i] = y[i]
+        for j in xrange(i+1, n):
+            x[i] -= _U[i][j] * x[j]
+        x[i] /= _U[i][i]
+
+    return x
+
+    
+
+def matrix_mult_vec(matrix_a, x):
+    """ multiply matrix matrix_a by vector x
+    """
+    m = len(matrix_a)
+    b = [0 for i in xrange(m)]
+    for i in xrange(m):
+        b[i] = dot_product(matrix_a[i], x)
+    return b
+
+
+
+
+def matrix_mult_matrix(matrix_a, matrix_b):
+    """ return matrix result of multiplying matrix_a and matrix_b
+    """
+    m = len(matrix_a)
+    n = len(matrix_b)
+    result = []
+    matrix_b_t = transpose_matrix(matrix_b)
+    for i in xrange(m):
+        row = []
+	for j in xrange(m):
+            row.append(dot_product(matrix_a[i], matrix_b_t[j]))
+	result.append(row)
+    return result
 
 
 
@@ -73,6 +124,9 @@ def get_matrices( ind_v):
 
 
 
+
+
+
 def linear_regression( ind_v , b ):
     """ 
     ind_v: list of lists, where each element is a list of independent variable values [ [x0,y0,z0], [x1,y1,z1] ...]
@@ -80,30 +134,15 @@ def linear_regression( ind_v , b ):
     """
     ## get matrices A and A_transpose
     a, a_t = get_matrices( ind_v )
-    pass
-    
-
-
-
-
-
+    a_t_mult_a = matrix_mult_matrix(a_t, a) ## A_transpose * A
+    a_t_mult_b = matrix_mult_vec(a_t, b)  
+    result =  solve_fwd_bkwd( a_t_mult_a, a_t_mult_b) ## Solve A_transpose*A x = A_transpose * b
+    return result
 
 
 
 ##### simple test #######
-
 if __name__== "__main__":
-    matrix_x =  [ [4,12,-16], [12, 37, -43], [-16, -43, 98]]
-    print transpose_matrix(matrix_x)
-    print cholesky(matrix_x)
-
-    
-
-
-
-
-
-
-
-
-
+    A = [[0], [1], [2]]
+    b = [6, 0, 0]
+    print linear_regression(A, b)
