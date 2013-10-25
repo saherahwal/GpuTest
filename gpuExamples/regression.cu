@@ -111,7 +111,6 @@ __global__ void linear_regression( Matrix I_vals, Matrix b, float *r) {
 
 
 
-
 //TODO linear regression using dot product and inverse/LU/Choelsky
 
 
