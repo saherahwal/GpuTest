@@ -93,7 +93,7 @@ __device__ void set_elt(Matrix A, int row, int col, float value)
 * A,B: matrices to multiply
 * C: resulting matrix of A*B
 */
-__device__ void matrix_multiply( Matrix A, Matrix B, Matrix C){
+__device__ void matrix_multiply_matrix( Matrix A, Matrix B, Matrix C){
 
     //Block row and column
     int row_block = blockIdx.y;
