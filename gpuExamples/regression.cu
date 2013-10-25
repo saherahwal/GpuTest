@@ -10,7 +10,8 @@ const int blocksPerGrid = imin (32, (N + threadsPerBlock-1)/ threadsPerBlock);
 typedef struct {
     int m;
     int n;
-    float* elts;
+    int stride;
+    float* elts; 
 } Matrix;
 
 
@@ -60,7 +61,32 @@ __device__ void cholesky( Matrix A, Matrix L){
 } 
 
 
+/*
+* S: Matrix to get sub matrix from
+* row, column: row and column to start at
+* return matrix X which is sub matrix of S
+*/
+__device__ Matrix get_sub_mtx( const Matrix S, int row, int col){
+    Matrix X;
+    X.n = BLOCK_SIZE;
+    X.m = BLOCK_SIZE;
+    X.stride = S.stride;
+    X.elts = &S.elts[S.stride * BLOCK_SIZE * row + BLOCK_SIZE * col];
+    return X;
+}
 
+
+// Get a matrix element
+__device__ float get_elt(const Matrix A, int row, int col)
+{
+    return A.elements[row * A.stride + col];
+}
+
+// Set a matrix element
+__device__ void set_elt(Matrix A, int row, int col, float value)
+{
+     A.elements[row * A.stride + col] = value;
+}
 
 
 /*
@@ -92,10 +118,30 @@ __device__ void matrix_multiply( Matrix A, Matrix B, Matrix C){
         // get sub-mtx sub_a of A and sub_b of B
         Matrix sub_a = get_sub_mtx(A, row_block, i);
         Matrix sub_b = get_sub_mtx(B, i, col_block); 
+       
+        //shared memory to fill sub matrices 
+        __shared__ float As[BLOCK_SIZE][BLOCK_SIZE];
+        __shared__ float Bs[BLOCK_SIZE][BLOCK_SIZE];       
         
-        //TODO complete kernel        
+        As[row][col] = get_elt(sub_a, row, col);
+        Bs[row][col] = get_elt(sub_b, row, col);
+        
+	//synchronize the threads
+  	__syncthreads();
+
+        // multiply sub matrices
+        for(int e = 0; e < BLOCK_SIZE; ++e){
+            val += As[row][e] * Bs[e][col];
+        }        
+        
+        // synchronize threads 
+        __syncthreads();
+
+               
     }
-    //TODO finish kerner matrix mult
+    // set sub-matrix c_sub element at row, column to val
+    // each thread does the following
+    set_elt( c_sub, row, col, val);
     
 }  
 
