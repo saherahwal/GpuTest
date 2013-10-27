@@ -101,6 +101,60 @@ __device__ void set_elt(Matrix A, int row, int col, float value){
 
 
 /*
+* A: matrix to transpose
+* At: tranposed Matrix
+*/
+__global__ void matrix_transpose(Matrix A, Matrix At){
+    
+   __shared__ float tile[TILE_DIM][TILE_DIM+1];
+   
+   //diagonal reorder for transpose implementation
+
+   int block_x, block_y;
+   
+   if(A.n == A.m){
+       block_y = blockIdx.x;
+       block_x = (blockIdx.y + blockIdx.x) % gridDim.x;
+   } else {
+       block_y = ((blockIdx.y * gridDim.x) + blockIdx.x) % gridDim.y;
+       block_x = (((blockIdx.y * gridDim.x) + blockIdx.x)/gridDim.y) + block_y) % gridDim.x;
+   }
+   
+   int x = block_x * TILE_DIM + threadIdx.x;
+   int y = block_y * TILE_DIM + threadIdx.y;
+
+   int in_index = x + y * A.n; 
+   
+   int x = block_y * TILE_DIM + threadIdx.x;
+   int y = block_x * TILE_DIM + threadIdx.y;
+
+   int out_index = x + y * A.m;
+
+
+   for (int i = 0; i < TILE_DIM; i+= BLOCK_SIZE){
+       tile[threadIdx.y + i][threadIdx.x] = A.elts[in_index + i*A.n];
+   }
+   __syncthreads();
+  
+   for(int i = 0; i < TILE_DIM; i+= BLOCK_SIZE){
+       At.elts[out_index + i * height] = tile[threadIdx.x][threadIdx.y + i];
+   }
+   
+   
+   
+}
+
+
+
+
+
+
+
+
+
+
+
+/*
 * A,B: matrices to multiply
 * C: resulting matrix of A*B
 */
@@ -178,7 +232,7 @@ __global__ void matrix_multiply_matrix( Matrix A, Matrix B, Matrix C){
 
                
     }
-    printf("I don't get it!\n");
+    
     
     // set sub-matrix c_sub element at row, column to val
     // each thread does the following
