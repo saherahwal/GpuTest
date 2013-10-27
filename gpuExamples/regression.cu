@@ -1,5 +1,7 @@
 #include "common/book.h"
 
+#define imin(a,b) (a<b?a:b)
+#define BLOCK_SIZE 3
 
 const int N = 33 * 1024;
 const int threadsPerBlock = 256;
@@ -11,8 +13,18 @@ typedef struct {
     int m;
     int n;
     int stride;
-    float* elts; 
+    float *elts; 
 } Matrix;
+
+
+__host__ __device__ void print_matrix( Matrix A){
+    printf("--------------------------\n");
+    for(int i = 0; i < (A.n * A.m); ++i){
+        if( i % 3 == 0) printf("\n");
+        printf("%f ", A.elts[i]);
+    }
+    printf("--------------------------\n");
+}
 
 
 
@@ -66,7 +78,7 @@ __device__ void cholesky( Matrix A, Matrix L){
 * row, column: row and column to start at
 * return matrix X which is sub matrix of S
 */
-__device__ Matrix get_sub_mtx( const Matrix S, int row, int col){
+__host__ __device__ Matrix get_sub_mtx( const Matrix S, int row, int col){
     Matrix X;
     X.n = BLOCK_SIZE;
     X.m = BLOCK_SIZE;
@@ -77,15 +89,14 @@ __device__ Matrix get_sub_mtx( const Matrix S, int row, int col){
 
 
 // Get a matrix element
-__device__ float get_elt(const Matrix A, int row, int col)
-{
-    return A.elements[row * A.stride + col];
+__device__ float get_elt(const Matrix A, int row, int col){   
+    //printf("returning %f\n ", A.elts[row* A.stride + col]); 
+    return A.elts[row * A.stride + col];
 }
 
 // Set a matrix element
-__device__ void set_elt(Matrix A, int row, int col, float value)
-{
-     A.elements[row * A.stride + col] = value;
+__device__ void set_elt(Matrix A, int row, int col, float value){         
+     A.elts[row * A.stride + col] = value;
 }
 
 
@@ -93,14 +104,19 @@ __device__ void set_elt(Matrix A, int row, int col, float value)
 * A,B: matrices to multiply
 * C: resulting matrix of A*B
 */
-__device__ void matrix_multiply_matrix( Matrix A, Matrix B, Matrix C){
+__global__ void matrix_multiply_matrix( Matrix A, Matrix B, Matrix C){
 
     //Block row and column
     int row_block = blockIdx.y;
     int col_block = blockIdx.x;
 
     //each thread block computes submatrix of dimensions BLOCK_SIZE*BLOCK_SIZE
-    Matrix sub_c = get_sub_mtx(C, row_block, column_block);
+    Matrix sub_c = get_sub_mtx(C, row_block, col_block);
+     
+    /* 
+    printf("submatrix of row %d and col %d  \n", row_block, col_block);
+    print_matrix(sub_c);
+    */
 
     // each element computes one element of sub matrix sub_c
     // we accumulate the results in val
@@ -110,7 +126,8 @@ __device__ void matrix_multiply_matrix( Matrix A, Matrix B, Matrix C){
     int row = threadIdx.y;
     int col = threadIdx.x;
 
-
+    
+    
     // loop the sub matrices of A and B required to compute the sub_c matrix
     // note that this assumes A.n is a multiple of BLOCK_SIZE
     for (int i = 0 ; i < (A.n / BLOCK_SIZE); ++i){
@@ -118,7 +135,14 @@ __device__ void matrix_multiply_matrix( Matrix A, Matrix B, Matrix C){
         // get sub-mtx sub_a of A and sub_b of B
         Matrix sub_a = get_sub_mtx(A, row_block, i);
         Matrix sub_b = get_sub_mtx(B, i, col_block); 
-       
+         
+        
+        if(row == 0 && col == 0){
+            print_matrix(sub_a);
+            print_matrix(sub_b);        
+        }
+
+ 
         //shared memory to fill sub matrices 
         __shared__ float As[BLOCK_SIZE][BLOCK_SIZE];
         __shared__ float Bs[BLOCK_SIZE][BLOCK_SIZE];       
@@ -126,23 +150,41 @@ __device__ void matrix_multiply_matrix( Matrix A, Matrix B, Matrix C){
         As[row][col] = get_elt(sub_a, row, col);
         Bs[row][col] = get_elt(sub_b, row, col);
         
+        printf("sub_a elt at row %d and col %d = %f \n ", row, col, get_elt(sub_a, row, col));
+        printf("sub_b elt at row %d and col %d = %f \n ", row, col, get_elt(sub_b, row, col));
+        
+
+ 
 	//synchronize the threads
   	__syncthreads();
 
+                
         // multiply sub matrices
         for(int e = 0; e < BLOCK_SIZE; ++e){
             val += As[row][e] * Bs[e][col];
-        }        
+            
+	}        
         
+        /*
+        if(row == 0 && col == 0){
+            printf("(0,0) = %f \n", val);
+        } else if (row == 2 && col == 2){
+            printf("(2,2) = %f \n", val);
+        }
+        */
+
         // synchronize threads 
         __syncthreads();
 
                
     }
+    printf("I don't get it!\n");
+    
     // set sub-matrix c_sub element at row, column to val
     // each thread does the following
-    set_elt( c_sub, row, col, val);
-    
+    set_elt( sub_c, row, col, val);
+
+     
 }  
 
 
@@ -158,6 +200,92 @@ __global__ void linear_regression( Matrix I_vals, Matrix b, float *r) {
 
 
 //TODO linear regression using dot product and inverse/LU/Choelsky
+
+
+
+
+
+
+
+
+
+
+
+
+int main ( void ) {
+    // test matrix multiplication (A_T * A)
+    
+    Matrix A;
+    A.n = 3;
+    A.m = 3;
+    float a[9] = {1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f, 7.0f, 8.0f, 9.0f};
+    A.elts = a;
+           
+
+    Matrix At;
+    At.n = 3;
+    At.m = 3;
+    float at[9] = {1.0f, 4.0f, 7.0f, 2.0f, 5.0f, 8.0f, 3.0f, 6.0f, 9.0f};
+    At.elts = at;
+   
+    
+
+    Matrix d_A;
+    d_A.n = d_A.stride = A.n;
+    d_A.m = A.m;
+    size_t size = A.n * A.m * sizeof(float);
+    
+    cudaMalloc(&d_A.elts, size);
+    cudaMemcpy(d_A.elts, A.elts, size, cudaMemcpyHostToDevice);
+        
+    Matrix d_At;
+    d_At.n = d_At.stride = At.n;
+    d_At.m = At.m;
+    
+    cudaMalloc(&d_At.elts, size);
+    cudaMemcpy(d_At.elts, At.elts, size, cudaMemcpyHostToDevice);
+    
+    Matrix d_C;
+    d_C.n = d_C.stride =  A.n;
+    d_C.m = A.n; // square matrix
+    size = d_C.m * d_C.n * sizeof(float);
+    float c[9] = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,0.0f,0.0f, 0.0f};
+    d_C.elts = c;
+    cudaMalloc(&d_C.elts, size);
+    
+       
+    // Invoke Kernel
+    dim3 dimBlock(BLOCK_SIZE, BLOCK_SIZE);
+    dim3 dimGrid(At.n / dimBlock.x, A.m / dimBlock.y);
+
+    matrix_multiply_matrix<<<dimGrid, dimBlock>>>(d_At, d_A, d_C);
+    
+    //
+    Matrix C;
+    C.m = At.m;
+    C.n = A.n;
+    C.elts = (float *)malloc(sizeof(float) * C.m * C.n);
+    cudaMemcpy(C.elts, d_C.elts, size, cudaMemcpyDeviceToHost);
+   
+        
+    print_matrix(A);
+    print_matrix(At);
+    print_matrix(C);    
+
+    
+    
+    //print_matrix( get_sub_mtx(C, 0, 0));
+     
+    free(C.elts);    
+    cudaFree(d_A.elts);
+    cudaFree(d_At.elts);
+    cudaFree(d_C.elts); 
+     
+
+  
+   return 0;
+}
+
 
 
 
