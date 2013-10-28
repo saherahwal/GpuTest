@@ -21,7 +21,7 @@ typedef struct {
 __host__ __device__ void print_matrix( Matrix A){
     printf("--------------------------\n");
     for(int i = 0; i < (A.n * A.m); ++i){
-        if( i % 3 == 0) printf("\n");
+        if( i % A.n == 0) printf("\n");
         printf("%f ", A.elts[i]);
     }
     printf("--------------------------\n");
@@ -131,8 +131,10 @@ __global__ void matrix_transpose(Matrix A, Matrix At){
    y = block_x * TILE_DIM + threadIdx.y;
 
    int out_index = x + y * A.m;
+  
+ 
    
-   
+
 
    for (int i = 0; i < TILE_DIM; i+= BLOCK_SIZE){
        tile[threadIdx.y + i][threadIdx.x] = A.elts[in_index + i*A.n];
@@ -142,13 +144,13 @@ __global__ void matrix_transpose(Matrix A, Matrix At){
    __syncthreads();
   
    for(int i = 0; i < TILE_DIM; i+= BLOCK_SIZE){
-       //printf("out_index = %d \n", out_index);
-       //printf("i = %d \n", i);
-       //printf("threadIdx.x = %d \n", threadIdx.x);
-       //printf("threadIdx.y = %d \n", threadIdx.y);
-       //printf("tile[tidx][tidy + i]= %f \n", tile[threadIdx.x][threadIdx.y + i]);
+       printf("out_index = %d \n", out_index);
+       printf("i = %d \n", i);
+       printf("threadIdx.x = %d \n", threadIdx.x);
+       printf("threadIdx.y = %d \n", threadIdx.y);
+       printf("tile[tidx][tidy + i]= %f \n", tile[threadIdx.x][threadIdx.y + i]);
        At.elts[out_index + i * A.m] = tile[threadIdx.x][threadIdx.y + i];
-       //printf("I am here bro!");  
+       printf("I am here bro!");  
        
    }
    
@@ -180,11 +182,7 @@ __global__ void matrix_multiply_matrix( Matrix A, Matrix B, Matrix C){
     //each thread block computes submatrix of dimensions BLOCK_SIZE*BLOCK_SIZE
     Matrix sub_c = get_sub_mtx(C, row_block, col_block);
      
-    /* 
-    printf("submatrix of row %d and col %d  \n", row_block, col_block);
-    print_matrix(sub_c);
-    */
-
+    
     // each element computes one element of sub matrix sub_c
     // we accumulate the results in val
     float val = 0;
@@ -204,12 +202,7 @@ __global__ void matrix_multiply_matrix( Matrix A, Matrix B, Matrix C){
         Matrix sub_b = get_sub_mtx(B, i, col_block); 
          
         
-        if(row == 0 && col == 0){
-            print_matrix(sub_a);
-            print_matrix(sub_b);        
-        }
-
- 
+        
         //shared memory to fill sub matrices 
         __shared__ float As[BLOCK_SIZE][BLOCK_SIZE];
         __shared__ float Bs[BLOCK_SIZE][BLOCK_SIZE];       
@@ -217,10 +210,9 @@ __global__ void matrix_multiply_matrix( Matrix A, Matrix B, Matrix C){
         As[row][col] = get_elt(sub_a, row, col);
         Bs[row][col] = get_elt(sub_b, row, col);
         
-        printf("sub_a elt at row %d and col %d = %f \n ", row, col, get_elt(sub_a, row, col));
-        printf("sub_b elt at row %d and col %d = %f \n ", row, col, get_elt(sub_b, row, col));
+        //printf("sub_a elt at row %d and col %d = %f \n ", row, col, get_elt(sub_a, row, col));
+        //printf("sub_b elt at row %d and col %d = %f \n ", row, col, get_elt(sub_b, row, col));
         
-
  
 	//synchronize the threads
   	__syncthreads();
@@ -230,16 +222,9 @@ __global__ void matrix_multiply_matrix( Matrix A, Matrix B, Matrix C){
         for(int e = 0; e < BLOCK_SIZE; ++e){
             val += As[row][e] * Bs[e][col];
             
-	}        
+	}    
         
-        /*
-        if(row == 0 && col == 0){
-            printf("(0,0) = %f \n", val);
-        } else if (row == 2 && col == 2){
-            printf("(2,2) = %f \n", val);
-        }
-        */
-
+        
         // synchronize threads 
         __syncthreads();
 
@@ -281,23 +266,30 @@ __global__ void linear_regression( Matrix I_vals, Matrix b, float *r) {
 
 int main ( void ) {
     
-    /*
+    
     // test matrix multiplication (A_T * A)
     
+    printf("matrix multiply test\n");
+    //Square matrix test    
+    int width = 3;
+    int height = 3;
+    
+    dim3 dimBlock(BLOCK_SIZE, BLOCK_SIZE);
+    dim3 dimGrid(height / dimBlock.x, height / dimBlock.y);
+            
     Matrix A;
-    A.n = 3;
-    A.m = 3;
+    A.n = width;
+    A.m = height;
     float a[9] = {1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f, 7.0f, 8.0f, 9.0f};
     A.elts = a;
            
 
     Matrix At;
-    At.n = 3;
-    At.m = 3;
+    At.n = height;
+    At.m = width;
     float at[9] = {1.0f, 4.0f, 7.0f, 2.0f, 5.0f, 8.0f, 3.0f, 6.0f, 9.0f};
     At.elts = at;
-   
-    
+       
 
     Matrix d_A;
     d_A.n = d_A.stride = A.n;
@@ -321,15 +313,11 @@ int main ( void ) {
     float c[9] = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,0.0f,0.0f, 0.0f};
     d_C.elts = c;
     cudaMalloc(&d_C.elts, size);
-    
-       
-    // Invoke Kernel
-    dim3 dimBlock(BLOCK_SIZE, BLOCK_SIZE);
-    dim3 dimGrid(At.n / dimBlock.x, A.m / dimBlock.y);
 
+    //invoke kernel
     matrix_multiply_matrix<<<dimGrid, dimBlock>>>(d_At, d_A, d_C);
+
     
-    //
     Matrix C;
     C.m = At.m;
     C.n = A.n;
@@ -341,21 +329,157 @@ int main ( void ) {
     print_matrix(At);
     print_matrix(C);    
   
-    
-    
+        
      
     free(C.elts);    
     cudaFree(d_A.elts);
     cudaFree(d_At.elts);
     cudaFree(d_C.elts); 
-    */
+    
+
+    //column matrix A test:  A_T * A is row matrix * column matrix 
+  
+    width = 3;
+    height = 9;
+    
+    dim3 dimBlock2(BLOCK_SIZE, BLOCK_SIZE);
+    dim3 dimGrid2(width / dimBlock.x, width / dimBlock.y);
+            
+    
+    A.n = width;
+    A.m = height;
+    float a2[27] = {1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f, 7.0f, 8.0f, 9.0f, 1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f, 7.0f, 8.0f, 9.0f,1.0f, 2.0f, 3.0f, 4.0f, 5.0f,6.0f, 7.0f, 8.0f, 9.0f };
+    A.elts = a2;
+           
 
     
+    At.n = height;
+    At.m = width;
+    float at2[27] = {1.0f, 4.0f, 7.0f, 1.0f, 4.0f, 7.0f, 1.0f, 4.0f, 7.0f, 2.0f, 5.0f, 8.0f, 2.0f, 5.0f, 8.0f, 2.0f, 5.0f, 8.0f,3.0f, 6.0f, 9.0f, 3.0f, 6.0f,9.0f, 3.0f, 6.0f, 9.0f };
+    At.elts = at2;
+       
+
+    
+    d_A.n = d_A.stride = A.n;
+    d_A.m = A.m;
+    size = A.n * A.m * sizeof(float);
+    
+    cudaMalloc(&d_A.elts, size);
+    cudaMemcpy(d_A.elts, A.elts, size, cudaMemcpyHostToDevice);
+        
+    
+    d_At.n = d_At.stride = At.n;
+    d_At.m = At.m;
+    
+    cudaMalloc(&d_At.elts, size);
+    cudaMemcpy(d_At.elts, At.elts, size, cudaMemcpyHostToDevice);
+    
+    
+    d_C.n = d_C.stride =  A.n;
+    d_C.m = A.n; // square matrix
+    size = d_C.m * d_C.n * sizeof(float);
+    float c2[9] = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,0.0f,0.0f, 0.0f };
+    d_C.elts = c2;
+    cudaMalloc(&d_C.elts, size);
+
+    //invoke kernel
+    matrix_multiply_matrix<<<dimGrid2, dimBlock2>>>(d_At, d_A, d_C);// A_t * A
+
+        
+    C.m = At.m;
+    C.n = A.n;
+    C.elts = (float *)malloc(sizeof(float) * C.m * C.n);
+    cudaMemcpy(C.elts, d_C.elts, size, cudaMemcpyDeviceToHost);
+   
+        
+    print_matrix(A);
+    print_matrix(At);
+    print_matrix(C);    
+      
+     
+    free(C.elts);    
+    cudaFree(d_A.elts);
+    cudaFree(d_At.elts);
+    cudaFree(d_C.elts); 
+
+
+    // test A matrix row matrix -- A_t is column mtx 
+   
+  
+    width = 6;
+    height = 3;
+    
+    dim3 dimBlock3(BLOCK_SIZE, BLOCK_SIZE);
+    dim3 dimGrid3(width / dimBlock.x, width / dimBlock.y);
+            
+    
+    A.n = width;
+    A.m = height;
+    float a3[18] = {1.0f, 1.0f, 1.0f, 2.0f, 2.0f, 2.0f, 3.0f, 3.0f, 3.0f, 1.0f, 1.0f, 1.0f, 4.0f, 4.0f, 4.0f, 1.0f, 1.0f, 1.0f };
+    A.elts = a3;
+           
+
+    
+    At.n = height;
+    At.m = width;
+    float at3[18] = {1.0f, 3.0f, 4.0f, 1.0f, 3.0f, 4.0f, 1.0f, 3.0f, 4.0f, 2.0f, 1.0f, 1.0f, 2.0f, 1.0f, 1.0f, 2.0f, 1.0f, 1.0f };
+    At.elts = at3;
+       
+
+    
+    d_A.n = d_A.stride = A.n;
+    d_A.m = A.m;
+    size = A.n * A.m * sizeof(float);
+    
+    cudaMalloc(&d_A.elts, size);
+    cudaMemcpy(d_A.elts, A.elts, size, cudaMemcpyHostToDevice);
+        
+    
+    d_At.n = d_At.stride = At.n;
+    d_At.m = At.m;
+    
+    cudaMalloc(&d_At.elts, size);
+    cudaMemcpy(d_At.elts, At.elts, size, cudaMemcpyHostToDevice);
+    
+    
+    d_C.n = d_C.stride =  A.n;
+    d_C.m = A.n; // square matrix
+    size = d_C.m * d_C.n * sizeof(float);
+    float c3[36] = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,0.0f,0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,0.0f,0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f };
+    d_C.elts = c3;
+    cudaMalloc(&d_C.elts, size);
+
+    //invoke kernel
+    matrix_multiply_matrix<<<dimGrid3, dimBlock3>>>(d_At, d_A, d_C);// A_t * A
+
+        
+    C.m = At.m;
+    C.n = A.n;
+    C.elts = (float *)malloc(sizeof(float) * C.m * C.n);
+    cudaMemcpy(C.elts, d_C.elts, size, cudaMemcpyDeviceToHost);
+   
+        
+    print_matrix(A);
+    print_matrix(At);
+    print_matrix(C);    
+      
+     
+    free(C.elts);    
+    cudaFree(d_A.elts);
+    cudaFree(d_At.elts);
+    cudaFree(d_C.elts); 
+        
+        
+             
     // Test matrix transpose
+    
+    /*
+
+
     Matrix X;
-    X.n = 3;
+    X.n = 6;
     X.m = 3;
-    float a[9] = {1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f, 7.0f, 8.0f, 9.0f};
+    float a[18] = {1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f, 7.0f, 8.0f, 9.0f, 10.0f, 11.0f, 12.0f, 13.0f, 14.0f, 15.0f, 16.0f, 17.0f, 18.0f};
     X.elts = a;
     
     Matrix d_X;
@@ -371,7 +495,7 @@ int main ( void ) {
     d_Xt.n = d_Xt.stride =  X.m;
     d_Xt.m = X.n; 
     size = d_Xt.m * d_Xt.n * sizeof(float);
-    float c[9] = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,0.0f,0.0f, 0.0f};
+    float c[18] = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,0.0f,0.0f, 0.0f,0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
     d_Xt.elts = c;
     cudaMalloc(&d_Xt.elts, size);
 
@@ -395,8 +519,7 @@ int main ( void ) {
     cudaFree(d_X.elts);
     cudaFree(d_Xt.elts);
 
-    
-
+    */
  
     return 0;
 }
