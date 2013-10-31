@@ -107,11 +107,21 @@ __device__ void set_elt(Matrix A, int row, int col, float value){
 */
 __global__ void matrix_transpose(Matrix A, Matrix At){
   
-     
-   __shared__ float tile[TILE_DIM][TILE_DIM+1];
+   //TODO fix this to look like the matrix multiply function    
+   
+      
+   //__shared__ float tile[BLOCK_SIZE][BLOCK_SIZE+1];
+   
+   //Block row and column
+   int row_block = blockIdx.y;
+   int col_block = blockIdx.x;
+
+   //printf("current row_block is %d = \n", row_block);
+   //printf("current col_block is %d = \n", col_block);
    
    //diagonal reorder for transpose implementation
-     
+   
+   
    int block_x, block_y;
    
    if(A.n == A.m){
@@ -122,41 +132,86 @@ __global__ void matrix_transpose(Matrix A, Matrix At){
        block_x = ((((blockIdx.y * gridDim.x) + blockIdx.x)/gridDim.y) + block_y) % gridDim.x;
    }
    
-   int x = block_x * TILE_DIM + threadIdx.x;
-   int y = block_y * TILE_DIM + threadIdx.y;
+   int x = block_x * BLOCK_SIZE + threadIdx.x;
+   int y = block_y * BLOCK_SIZE + threadIdx.y;
 
    int in_index = x + y * A.n; 
    
-   x = block_y * TILE_DIM + threadIdx.x;
-   y = block_x * TILE_DIM + threadIdx.y;
+   x = block_y * BLOCK_SIZE + threadIdx.x;
+   y = block_x * BLOCK_SIZE + threadIdx.y;
 
    int out_index = x + y * A.m;
-  
- 
    
+   // sub matrix of result transpose
+   //Matrix sub_at = get_sub_mtx(At, blockIdx.y, blockIdx.x);
+   
+   // thread row and column
+   int row = threadIdx.y;
+   int col = threadIdx.x;
 
 
-   for (int i = 0; i < TILE_DIM; i+= BLOCK_SIZE){
-       tile[threadIdx.y + i][threadIdx.x] = A.elts[in_index + i*A.n];
-   }
+   //if(threadIdx.x == 0 && threadIdx.y == 0){
+   //print_matrix(sub_at);
+   //}
+   //__syncthreads();
    
+   int nVal = (A.n > A.m)? A.n : A.m;
    
-   __syncthreads();
-  
-   for(int i = 0; i < TILE_DIM; i+= BLOCK_SIZE){
-       printf("out_index = %d \n", out_index);
-       printf("i = %d \n", i);
-       printf("threadIdx.x = %d \n", threadIdx.x);
-       printf("threadIdx.y = %d \n", threadIdx.y);
-       printf("tile[tidx][tidy + i]= %f \n", tile[threadIdx.x][threadIdx.y + i]);
-       At.elts[out_index + i * A.m] = tile[threadIdx.x][threadIdx.y + i];
-       printf("I am here bro!");  
+
+   for(int j = 0; j < (nVal / BLOCK_SIZE); ++j){
+   
+       __shared__ float tile[BLOCK_SIZE][BLOCK_SIZE+1];
        
-   }
+       Matrix sub_a, sub_at;
+       if( A.n >= A.m){
+           sub_a = get_sub_mtx(A, row_block, j);               
+           sub_at = get_sub_mtx(At, j , col_block);
+       } else {
+           sub_a = get_sub_mtx(A, j, col_block);
+           sub_at = get_sub_mtx(At, row_block , j);
+       }
+       
+
+       for (int i = 0; i < BLOCK_SIZE; i+= BLOCK_SIZE){
+           //tile[threadIdx.y + i][threadIdx.x] = A.elts[in_index + i*A.n];
+           tile[row + i][col] = sub_a.elts[in_index + i*A.n];//get_elt(sub_a, row, in_index);
+           
+       }   
+       
+       /*
+       if(row == 0 && col == 0 && block_y == 0 && block_x == 0){
+       printf("sub mtx a \n");
+       print_matrix(sub_a);
+
+       printf("sub mtx at\n");
+       print_matrix(sub_at);
+       }*/
+
+       __syncthreads();
+  
+       for(int i = 0; i < BLOCK_SIZE; i+=BLOCK_SIZE){
+           sub_at.elts[out_index + i * A.m] = tile[col][row + i];
+           //__syncthreads();
+       }
+
+       
+       __syncthreads();
+       
+       //for(int i = 0; i < BLOCK_SIZE; i+= BLOCK_SIZE){
+       //printf("out_index = %d \n", out_index);
+       //printf("i = %d \n", i);
+       //printf("threadIdx.y = %d \n", threadIdx.y);
+       //printf("tile[tidx][tidy + i]= %f \n", tile[threadIdx.x][threadIdx.y + i]);
+           //At.elts[out_index + i * A.m] = tile[threadIdx.x][threadIdx.y + i];
+           
+       //}
    
+   //__syncthreads();  
    //printf("printing matrix from cuda");
    //print_matrix(At);   
-   
+   }
+   //__syncthreads();
+
 }
 
 
@@ -200,8 +255,7 @@ __global__ void matrix_multiply_matrix( Matrix A, Matrix B, Matrix C){
         // get sub-mtx sub_a of A and sub_b of B
         Matrix sub_a = get_sub_mtx(A, row_block, i);
         Matrix sub_b = get_sub_mtx(B, i, col_block); 
-         
-        
+                
         
         //shared memory to fill sub matrices 
         __shared__ float As[BLOCK_SIZE][BLOCK_SIZE];
@@ -221,7 +275,7 @@ __global__ void matrix_multiply_matrix( Matrix A, Matrix B, Matrix C){
         // multiply sub matrices
         for(int e = 0; e < BLOCK_SIZE; ++e){
             val += As[row][e] * Bs[e][col];
-            
+           
 	}    
         
         
@@ -269,6 +323,7 @@ int main ( void ) {
     
     // test matrix multiplication (A_T * A)
     
+    /*
     printf("matrix multiply test\n");
     //Square matrix test    
     int width = 3;
@@ -433,6 +488,7 @@ int main ( void ) {
     
     cudaMalloc(&d_A.elts, size);
     cudaMemcpy(d_A.elts, A.elts, size, cudaMemcpyHostToDevice);
+    cudaMemcpy(d_A.elts, A.elts, size, cudaMemcpyHostToDevice);
         
     
     d_At.n = d_At.stride = At.n;
@@ -469,16 +525,16 @@ int main ( void ) {
     cudaFree(d_At.elts);
     cudaFree(d_C.elts); 
         
-        
+    */    
              
     // Test matrix transpose
-    
-    /*
+      
+    printf("matrix transpose test\n");
 
 
     Matrix X;
-    X.n = 6;
-    X.m = 3;
+    X.n = 3;
+    X.m = 6;
     float a[18] = {1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f, 7.0f, 8.0f, 9.0f, 10.0f, 11.0f, 12.0f, 13.0f, 14.0f, 15.0f, 16.0f, 17.0f, 18.0f};
     X.elts = a;
     
@@ -501,8 +557,8 @@ int main ( void ) {
 
     
     // Invoke Kernel
-    dim3 dimBlock(TILE_DIM, BLOCK_SIZE);
-    dim3 dimGrid(X.m / TILE_DIM, X.n / TILE_DIM);
+    dim3 dimBlock(BLOCK_SIZE, BLOCK_SIZE);
+    dim3 dimGrid(X.n / BLOCK_SIZE, X.m / BLOCK_SIZE);
 
     matrix_transpose<<<dimGrid, dimBlock>>>(d_X, d_Xt);
 
@@ -511,15 +567,19 @@ int main ( void ) {
     Xt.n = Xt.stride = d_Xt.n;
     Xt.elts = (float *)malloc(sizeof(float) * Xt.m * Xt.n);
     cudaMemcpy(Xt.elts, d_Xt.elts, size, cudaMemcpyDeviceToHost);
-
-    printf("transpose result");
+    
+    //print_matrix(X);
+    //print_matrix(X);
+    print_matrix(X);
+    printf("transpose result\n");
     print_matrix(Xt);    
 
     free(Xt.elts);
     cudaFree(d_X.elts);
     cudaFree(d_Xt.elts);
-
-    */
+    
+    
+    
  
     return 0;
 }
