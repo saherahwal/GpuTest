@@ -46,7 +46,7 @@ def cholesky(matrix_x):
     for i in xrange(n):
         for k in xrange(i+1):
             tmp_sum = sum(_L[i][j] * _L[k][j] for j in xrange(k))
-            
+              
             if (i == k): # Diagonal elements
                 _L[i][k] = sqrt(matrix_x[i][i] - tmp_sum)
             else:
@@ -162,3 +162,8 @@ if __name__== "__main__":
     A = [[0], [1], [2]]
     b = [6, 0, 0]
     print linear_regression(A, b)
+
+    ### Cholesky Test
+    C = [ [25.0, 15, -5], [15, 18, 0], [-5, 0,11]]
+    L = cholesky(C);
+    print L;
