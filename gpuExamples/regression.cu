@@ -1,4 +1,8 @@
 #include "common/book.h"
+#include <math.h>
+
+
+
 
 #define imin(a,b) (a<b?a:b)
 #define BLOCK_SIZE 3
@@ -65,13 +69,6 @@ __device__ void dot( float *a, float *b, float *c){
 
 
 
-/*
-* A: matrix (symmetric and positive definite) 
-* L: L matrix (lower triangular)
-*/
-__device__ void cholesky( Matrix A, Matrix L){
-
-} 
 
 
 /*
@@ -96,9 +93,55 @@ __device__ float get_elt(const Matrix A, int row, int col){
 }
 
 // Set a matrix element
-__device__ void set_elt(Matrix A, int row, int col, float value){         
+__device__ void set_elt(Matrix A, int row, int col, float value){
+     //printf("setting row*A.stride + col (%d) to value (%f)\n", row*A.stride + col, value);         
      A.elts[row * A.stride + col] = value;
 }
+
+
+//__global__ fwd_bkwd_elimination( Matrix A
+
+
+
+
+/*
+* A: matrix (symmetric and positive definite) 
+* L: L matrix (lower triangular)
+*
+* This function does not need to be parallelized
+* Maybe place this on host
+*
+* This should pass Matrix L with all 0.0 values
+*
+*/
+__global__ void cholesky( Matrix A, Matrix L){
+               
+    int n = L.n;
+    
+    // init matrix
+    for(int z = 0; z < n*n ; ++z){
+        L.elts[z] = 0.0f;
+    } 
+
+    for(int i=0; i < n; ++i){
+        for(int k =0; k < i+1; ++k){
+            float tmp_sum = 0;
+            for(int j = 0; j < k; ++j){
+                tmp_sum += ( get_elt( L, i, j) * get_elt(L, k, j));
+            }
+            if(i == k){
+                float v = sqrt( get_elt(A, i, i) - tmp_sum );
+                //printf("v = %f\n", v);                
+                set_elt(L, i, k, v);
+            }else{
+		float v = 1.0 / get_elt(L, k , k) * (get_elt(A, i, k) - tmp_sum);
+	        //printf("v = %f \n", v);
+                set_elt(L, i , k, v);
+            }  
+        }
+    }      
+}
+
 
 
 /*
@@ -323,7 +366,7 @@ int main ( void ) {
     
     // test matrix multiplication (A_T * A)
     
-    /*
+    
     printf("matrix multiply test\n");
     //Square matrix test    
     int width = 3;
@@ -524,8 +567,16 @@ int main ( void ) {
     cudaFree(d_A.elts);
     cudaFree(d_At.elts);
     cudaFree(d_C.elts); 
-        
-    */    
+       
+    // test matrix multiply vector 
+
+    
+
+
+
+ 
+    
+    /*    
              
     // Test matrix transpose
       
@@ -578,7 +629,63 @@ int main ( void ) {
     cudaFree(d_X.elts);
     cudaFree(d_Xt.elts);
     
+    */
+    /*   
+    // test matrix multiplication (A_T * A)
     
+    printf("cholesky decomp tets matrix multiply test\n");
+    //Square matrix test    
+    int width = 3;
+    int height = 3;
+    
+    //dim3 dimBlock(BLOCK_SIZE, BLOCK_SIZE);
+    //dim3 dimGrid(height / dimBlock.x, height / dimBlock.y);
+            
+    Matrix C;
+    C.n = C.stride = width;
+    C.m = height;
+    float c[9] = {4.0f, 12.0f, -16.0f, 12.0f, 37.0f, -43.0f, -16.0f, -43.0f, 98.0f};
+    //float c[9] = {25.0f, 15.0f, -5.0f, 15.0f, 18.0f, 0.0f, -5.0f, 0.0f, 11.0f};
+    C.elts = c;
+   
+    Matrix d_C;
+    d_C.n = d_C.stride = C.n;
+    d_C.m = C.m;
+    size_t size_C = C.n * C.m * sizeof(float);
+    cudaMalloc(&d_C.elts, size_C);
+    cudaMemcpy(d_C.elts, C.elts, size_C, cudaMemcpyHostToDevice);
+
+    Matrix d_L;
+    d_L.n = d_L.stride = C.n;
+    d_L.m = C.m;
+    size_t size_L = d_C.m * d_C.n * sizeof(float);
+    float dL[9] = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,0.0f,0.0f, 0.0f};
+    d_L.elts = dL;
+    cudaMalloc(&d_L.elts, size_L);
+
+    
+
+    cholesky<<<1,1>>>(d_C, d_L);
+
+
+    Matrix L;
+    L.n = L.stride = C.n;
+    L.m = C.m;
+    float _l[9] = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
+    L.elts = _l;
+    //L.elts = (float *)malloc( sizeof(float) * C.m * C.n);
+    cudaMemcpy(L.elts, d_L.elts, size_L, cudaMemcpyDeviceToHost);
+
+    printf("start cholesky for C matrix: \n");
+    print_matrix(C);
+    printf("cholesky result\n");    
+    print_matrix(L);
+
+
+    //free(L.elts);
+    cudaFree(d_L.elts);
+    cudaFree(d_C.elts);
+   */
     
  
     return 0;
