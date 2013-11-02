@@ -159,6 +159,43 @@ def linear_regression( ind_v , b ):
 
 ##### simple test #######
 if __name__== "__main__":
+    ## test1
     A = [[0], [1], [2]]
     b = [6, 0, 0]
-    print linear_regression(A, b)
+    r= linear_regression(A, b)
+    print "test1"
+    print "A", A
+    print "b", b
+    print "result", r , "should be close to [5, -3]"
+
+    print "test2"
+    A = [ [-2], [1], [3]]
+    b = [-1, 1, 2]
+    r = linear_regression(A,b)
+    print "A", A
+    print "b", b
+    print "result", r, "should be close to [", str(float(5)/19), ",", str(float(23)/38),"]"
+    
+    print "test3"
+    A = [ [1,2],
+          [2,5],
+          [2,3],
+	  [2,2],
+          [3,4],
+          [3,5],
+          [4,6],
+          [5,5],
+          [5,6],
+          [5,7],
+          [6,8],
+          [7,6],
+          [8,4],
+          [8,9],
+          [9,8]]
+    b = [2,1,2,2,1,3,2,3,4,3,4,2,4,3,4]
+    r = linear_regression(A,b)
+    print "A", A
+    print "b", b
+    print "result", r, "should be close to [1.353480, 0.286191, -0.004195]"
+
+      
