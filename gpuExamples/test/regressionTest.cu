@@ -59,7 +59,7 @@ bool mtx_mult_test(Matrix A, Matrix B, Matrix E){
     
 
     dim3 dimBlock(BLOCK_SIZE, BLOCK_SIZE);
-    dim3 dimGrid(height_A / dimBlock.x, height_A / dimBlock.y);
+    dim3 dimGrid(height_A / dimBlock.x, width_B / dimBlock.y);
     
     Matrix d_A = create_matrix(width_A, height_A, elements_A);
     cudaMalloc(&d_A.elts, size_A);
@@ -255,6 +255,20 @@ int main( void) {
     //free(B3.elts);
     //free(E3.elts);
     
+
+    //test matrix multiply vector 
+    float elts_a4[9] = {1.0f, 2.0f, 1.0f, 0.0f, 1.0f, 1.0f, -3.0f, 1.0f, 2.0f};
+    Matrix A4 = create_matrix( 3, 3, elts_a4);
+    float elts_b4[3] = {1.0f, -2.0f, 3.0f};
+    Matrix B4 = create_matrix( 1, 3, elts_b4); 
+    float elts_e4[3] = {0.0f, 1.0f, 1.0f};
+    Matrix E4 = create_matrix( 1, 3, elts_e4);
+    bool t4 = mtx_mult_test( A4, B4, E4);
+    if(t4) printf("PASS \n");
+    else printf("FAIL\n");
+
+
+
 
     // test transpose 
     printf("test matrix transpose \n");    
