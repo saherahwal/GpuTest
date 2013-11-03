@@ -361,12 +361,11 @@ __global__ void linear_regression( Matrix I_vals, Matrix b, float *r) {
 
 
 
-int main ( void ) {
+//int main ( void ) {
     
-    
+    /*   
     // test matrix multiplication (A_T * A)
-    
-    
+            
     printf("matrix multiply test\n");
     //Square matrix test    
     int width = 3;
@@ -571,11 +570,7 @@ int main ( void ) {
     // test matrix multiply vector 
 
     
-
-
-
- 
-    
+    */    
     /*    
              
     // Test matrix transpose
@@ -688,10 +683,7 @@ int main ( void ) {
    */
     
  
-    return 0;
-}
-
-
-
+//    return 0;
+//}
 
 
