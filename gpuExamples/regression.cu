@@ -21,6 +21,13 @@ typedef struct {
     float *elts; 
 } Matrix;
 
+// struct for vector
+typedef struct {
+    int length;
+    float *elts;
+} Vector;
+
+
 
 __host__ __device__ void print_matrix( Matrix A){
     printf("--------------------------\n");
@@ -99,7 +106,53 @@ __device__ void set_elt(Matrix A, int row, int col, float value){
 }
 
 
-//__global__ fwd_bkwd_elimination( Matrix A
+
+/*
+* L: cholesky lower triangle matrix
+* U: should be the transpose of L: upper triangular result from cholesky
+* b: vector b 
+* x: vector x to solve for
+*/
+__global__ void fwd_bkwd_elimination( Matrix L, Matrix U, Vector b, Vector r){
+
+  
+   int n = b.length;
+   //__shared__ float y[n]; // representing vector y
+   //__shared__ float x[n]; // representing vector x
+ 
+   float *y = (float *)malloc(n * sizeof(float));
+   float *x = (float *)malloc(n * sizeof(float));
+   memset(y, 0.0f, n*sizeof(float));
+   memset(x, 0.0f, n*sizeof(float));
+
+   //init shared memory
+   //for(int k = 0; k < n; ++k){
+     // y[k] = 0.0f;
+   //}
+
+ 
+   //forward solve Ly = b
+   for(int i = 0; i < n; ++i){
+       y[i] = b.elts[i];
+       for(int j = 0; j < i; ++j){
+           y[i] -= get_elt( L, i, j) * y[j];
+       }
+       y[i] /= get_elt(L, i, i);
+   }
+   
+   //backward solve Ux = y
+   for(int i = n-1; i > -1; --i){
+       x[i] = y[i];
+       for(int j = i+1; j < n; j++){
+           x[i] -= get_elt(U, i, j) * x[j];
+       }
+       x[i] /= get_elt( U,i, i);
+   }
+   
+   r.elts = x; //set result vector from x
+   free(x);
+   free(y);
+}
 
 
 
