@@ -11,9 +11,6 @@ Matrix create_matrix( int width, int height, float * elements){
      Matrix A;
      A.n = A.stride = width;
      A.m = height;
-     //size_t size_A = sizeof(float) * height * width;
-     //A.elts = (float *)malloc( size_A );
-     //memcpy( A.elts, elements, sizeof(float) * height * width);
      A.elts = elements;
      return A;
 }
@@ -79,6 +76,7 @@ bool vec_equal(Vector a, Vector b){
 */
 bool mtx_mult_test(Matrix A, Matrix B, Matrix E){
     
+           
     int width_A = A.n;
     int height_A = A.m;
     size_t size_A = width_A * height_A * sizeof(float);
@@ -89,9 +87,11 @@ bool mtx_mult_test(Matrix A, Matrix B, Matrix E){
     size_t size_B = width_B * height_B * sizeof(float);
     float * elements_B = B.elts;
     
+    //printf("ceil test test %f\n", ceil(width_A / (float)BLOCK_SIZE));
+
 
     dim3 dimBlock(BLOCK_SIZE, BLOCK_SIZE);
-    dim3 dimGrid(height_A / dimBlock.x, width_B / dimBlock.y);
+    dim3 dimGrid(ceil(height_A / (float)dimBlock.x), ceil(width_B / (float)dimBlock.y));
     
     Matrix d_A = create_matrix(width_A, height_A, elements_A);
     cudaMalloc(&d_A.elts, size_A);
@@ -147,6 +147,7 @@ bool mtx_mult_test(Matrix A, Matrix B, Matrix E){
 */
 bool mtx_transpose_test(Matrix A, Matrix E){
 
+       
     int width_A = A.n;
     int height_A = A.m;
     size_t size_A = width_A * height_A * sizeof(float);
@@ -361,17 +362,45 @@ int main( void) {
     //free(A3.elts);
     //free(B3.elts);
     //free(E3.elts);
-    
+   
 
-    //test matrix multiply vector 
-    float elts_a4[9] = {1.0f, 2.0f, 1.0f, 0.0f, 1.0f, 1.0f, -3.0f, 1.0f, 2.0f};
-    Matrix A4 = create_matrix( 3, 3, elts_a4);
-    float elts_b4[3] = {1.0f, -2.0f, 3.0f};
-    Matrix B4 = create_matrix( 1, 3, elts_b4); 
-    float elts_e4[3] = {0.0f, 1.0f, 1.0f};
-    Matrix E4 = create_matrix( 1, 3, elts_e4);
+
+
+    // test different dimensions
+    float elts_a4[4] = {1.0f, 2.0f, 3.0f, 4.0f};
+    Matrix A4 = create_matrix( 2, 2, elts_a4);
+    float elts_b4[4] = {1.0f, 2.0f, 3.0f, 4.0f};
+    Matrix B4 = create_matrix( 2, 2, elts_b4);
+    float elts_e4[4] = {7.0f, 10.0f, 15.0f, 22.0f};
+    Matrix E4 = create_matrix( 2, 2, elts_e4);
     bool t4 = mtx_mult_test( A4, B4, E4);
     if(t4) printf("PASS \n");
+    else printf("FAIL\n");
+
+
+    float elts_a6[8] = {1.0f, 1.0f, 1.0f, 1.0f, 0.0f, 2.0f, 0.0f, 2.0f};
+    Matrix A6 = create_matrix( 4, 2, elts_a6);
+    float elts_b6[4] = {1.0f, 0.0f, 1.0f, 1.0f};
+    Matrix B6 = create_matrix( 1, 4, elts_b6);
+    float elts_e6[4] = {3.0f, 2.0f};
+    Matrix E6 = create_matrix( 1, 2, elts_e6);
+    bool t6 = mtx_mult_test( A6, B6, E6);
+    if(t6) printf("PASS \n");
+    else printf("FAIL\n");
+
+
+
+ 
+
+    //test matrix multiply vector 
+    float elts_a5[9] = {1.0f, 2.0f, 1.0f, 0.0f, 1.0f, 1.0f, -3.0f, 1.0f, 2.0f};
+    Matrix A5 = create_matrix( 3, 3, elts_a5);
+    float elts_b5[3] = {1.0f, -2.0f, 3.0f};
+    Matrix B5 = create_matrix( 1, 3, elts_b5); 
+    float elts_e5[3] = {0.0f, 1.0f, 1.0f};
+    Matrix E5 = create_matrix( 1, 3, elts_e5);
+    bool t5 = mtx_mult_test( A5, B5, E5);
+    if(t5) printf("PASS \n");
     else printf("FAIL\n");
 
 

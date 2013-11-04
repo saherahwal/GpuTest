@@ -2,7 +2,6 @@
 #include <math.h>
 
 
-
 #define imin(a,b) (a<b?a:b)
 #define BLOCK_SIZE 3
 #define TILE_DIM 3
@@ -10,6 +9,10 @@
 const int N = 33 * 1024;
 const int threadsPerBlock = 256;
 const int blocksPerGrid = imin (32, (N + threadsPerBlock-1)/ threadsPerBlock);
+
+
+//const int BLOCK_SIZE = 3;
+
 
 
 // struct for storing matrices
@@ -112,7 +115,6 @@ __device__ void set_elt(Matrix A, int row, int col, float value){
      //printf("setting row*A.stride + col (%d) to value (%f)\n", row*A.stride + col, value);         
      A.elts[row * A.stride + col] = value;
 }
-
 
 
 /*
@@ -273,7 +275,6 @@ __global__ void matrix_transpose(Matrix A, Matrix At){
            sub_at.elts[out_index + i * A.m] = tile[col][row + i];
            //__syncthreads();
        }
-
        
        __syncthreads();
        
@@ -282,6 +283,19 @@ __global__ void matrix_transpose(Matrix A, Matrix At){
    //__syncthreads();
 
 }
+
+
+/*
+* A: Matrix A
+* x: vector x to multiply matrix A by
+* b: result of multiplying A*x.  b = A*x
+*/
+//__global__ void matrix_multiply_vector(Matrix A, Vector x, Vector b){
+   
+
+
+//}
+
 
 
 /*
@@ -298,7 +312,7 @@ __global__ void matrix_multiply_matrix( Matrix A, Matrix B, Matrix C){
     Matrix sub_c = get_sub_mtx(C, row_block, col_block);
      
     
-    // each element computes one element of sub matrix sub_c
+    // each thread computes one element of sub matrix sub_c
     // we accumulate the results in val
     float val = 0;
 
@@ -310,7 +324,7 @@ __global__ void matrix_multiply_matrix( Matrix A, Matrix B, Matrix C){
     
     // loop the sub matrices of A and B required to compute the sub_c matrix
     // note that this assumes A.n is a multiple of BLOCK_SIZE
-    for (int i = 0 ; i < (A.n / BLOCK_SIZE); ++i){
+    for (int i = 0 ; i < ceil(A.n / (float)BLOCK_SIZE); ++i){
         
         // get sub-mtx sub_a of A and sub_b of B
         Matrix sub_a = get_sub_mtx(A, row_block, i);
@@ -320,6 +334,7 @@ __global__ void matrix_multiply_matrix( Matrix A, Matrix B, Matrix C){
         //shared memory to fill sub matrices 
         __shared__ float As[BLOCK_SIZE][BLOCK_SIZE];
         __shared__ float Bs[BLOCK_SIZE][BLOCK_SIZE];       
+       
         
         As[row][col] = get_elt(sub_a, row, col);
         Bs[row][col] = get_elt(sub_b, row, col);
@@ -331,12 +346,16 @@ __global__ void matrix_multiply_matrix( Matrix A, Matrix B, Matrix C){
 	//synchronize the threads
   	__syncthreads();
 
-                
-        // multiply sub matrices
-        for(int e = 0; e < BLOCK_SIZE; ++e){
-            val += As[row][e] * Bs[e][col];
-           
-	}    
+        if( (i ==  ceil(A.n/ (float)BLOCK_SIZE) - 1) && A.n % BLOCK_SIZE != 0){
+            for(int e = 0; e < A.n % BLOCK_SIZE; ++e){
+                val += As[row][e] * Bs[e][col];
+            }
+        } else{        
+            // multiply sub matrices
+            for(int e = 0; e < BLOCK_SIZE; ++e){
+                val += As[row][e] * Bs[e][col];           
+	    }
+        }    
         
         
         // synchronize threads 
