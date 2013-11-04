@@ -3,7 +3,6 @@
 
 
 
-
 #define imin(a,b) (a<b?a:b)
 #define BLOCK_SIZE 3
 #define TILE_DIM 3
@@ -36,6 +35,15 @@ __host__ __device__ void print_matrix( Matrix A){
         printf("%f ", A.elts[i]);
     }
     printf("--------------------------\n");
+}
+
+
+__host__ __device__ void print_vector( Vector v ){
+   printf("-------------------------------\n");
+   for(int i = 0; i < v.length; ++i){
+       printf(" %f \n", v.elts[i]);
+   }
+   printf("--------------------------------\n");
 }
 
 
@@ -121,16 +129,10 @@ __global__ void fwd_bkwd_elimination( Matrix L, Matrix U, Vector b, Vector r){
    //__shared__ float x[n]; // representing vector x
  
    float *y = (float *)malloc(n * sizeof(float));
-   float *x = (float *)malloc(n * sizeof(float));
    memset(y, 0.0f, n*sizeof(float));
-   memset(x, 0.0f, n*sizeof(float));
+   
 
-   //init shared memory
-   //for(int k = 0; k < n; ++k){
-     // y[k] = 0.0f;
-   //}
-
- 
+    
    //forward solve Ly = b
    for(int i = 0; i < n; ++i){
        y[i] = b.elts[i];
@@ -142,18 +144,19 @@ __global__ void fwd_bkwd_elimination( Matrix L, Matrix U, Vector b, Vector r){
    
    //backward solve Ux = y
    for(int i = n-1; i > -1; --i){
-       x[i] = y[i];
+       r.elts[i] = y[i];
        for(int j = i+1; j < n; j++){
-           x[i] -= get_elt(U, i, j) * x[j];
+           r.elts[i] -= get_elt(U, i, j) * r.elts[j];
        }
-       x[i] /= get_elt( U,i, i);
+       r.elts[i] /= get_elt( U,i, i);
    }
    
-   r.elts = x; //set result vector from x
-   free(x);
+
+   //printf("printing x\n");
+   //for(int i = 0; i< n; i++) { printf("x = %f\n", r.elts[i]);}
+
    free(y);
 }
-
 
 
 
@@ -203,21 +206,11 @@ __global__ void cholesky( Matrix A, Matrix L){
 */
 __global__ void matrix_transpose(Matrix A, Matrix At){
   
-   //TODO fix this to look like the matrix multiply function    
-   
-      
-   //__shared__ float tile[BLOCK_SIZE][BLOCK_SIZE+1];
-   
    //Block row and column
    int row_block = blockIdx.y;
    int col_block = blockIdx.x;
-
-   //printf("current row_block is %d = \n", row_block);
-   //printf("current col_block is %d = \n", col_block);
-   
+  
    //diagonal reorder for transpose implementation
-   
-   
    int block_x, block_y;
    
    if(A.n == A.m){
@@ -273,16 +266,7 @@ __global__ void matrix_transpose(Matrix A, Matrix At){
            tile[row + i][col] = sub_a.elts[in_index + i*A.n];//get_elt(sub_a, row, in_index);
            
        }   
-       
-       /*
-       if(row == 0 && col == 0 && block_y == 0 && block_x == 0){
-       printf("sub mtx a \n");
-       print_matrix(sub_a);
-
-       printf("sub mtx at\n");
-       print_matrix(sub_at);
-       }*/
-
+   
        __syncthreads();
   
        for(int i = 0; i < BLOCK_SIZE; i+=BLOCK_SIZE){
@@ -293,31 +277,11 @@ __global__ void matrix_transpose(Matrix A, Matrix At){
        
        __syncthreads();
        
-       //for(int i = 0; i < BLOCK_SIZE; i+= BLOCK_SIZE){
-       //printf("out_index = %d \n", out_index);
-       //printf("i = %d \n", i);
-       //printf("threadIdx.y = %d \n", threadIdx.y);
-       //printf("tile[tidx][tidy + i]= %f \n", tile[threadIdx.x][threadIdx.y + i]);
-           //At.elts[out_index + i * A.m] = tile[threadIdx.x][threadIdx.y + i];
-           
-       //}
-   
-   //__syncthreads();  
-   //printf("printing matrix from cuda");
-   //print_matrix(At);   
+         
    }
    //__syncthreads();
 
 }
-
-
-
-
-
-
-
-
-
 
 
 /*

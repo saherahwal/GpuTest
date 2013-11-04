@@ -19,6 +19,17 @@ Matrix create_matrix( int width, int height, float * elements){
 }
 
 /**
+* generates vector struct with length and elts)
+*/
+Vector create_vector(int length, float * elements){
+    Vector v;
+    v.length = length;
+    v.elts = elements;
+    return v;
+}
+
+
+/**
 * Returns true if two matrices are equal
 */
 bool mtx_equal(Matrix A, Matrix B){
@@ -39,6 +50,27 @@ bool mtx_equal(Matrix A, Matrix B){
      }
 }
 
+
+
+/**
+* Returns true if two vectors are equal
+*/
+bool vec_equal(Vector a, Vector b){
+     if(b.length != a.length){
+          return false;
+     }else{
+         int len = b.length;
+         for(int z = 0; z < len; ++z){
+             float v1 = a.elts[z];
+             float v2 = b.elts[z];
+             
+             if((v1-v2) > EPSILON || (v1-v2) < -EPSILON){
+                 return false;
+             }
+         }
+         return true;
+     }
+}
 
 
 /**
@@ -202,6 +234,81 @@ bool mtx_cholesky_test(Matrix A,  Matrix E){
 
 }
 
+/*
+* L, U: cholesky decomposition result
+* b: dependent variable vector values
+* e: expected result of fwd_bkwd_elimination
+*/
+bool mtx_fwd_bkwd_elimination_test( Matrix L, Matrix U, Vector b, Vector e){
+    
+    int width_L = L.n;
+    int height_L = L.m;
+    size_t size_L = width_L * height_L * sizeof(float);
+    float * elements_L = L.elts;
+
+    int width_U = U.n;
+    int height_U = U.m;
+    size_t size_U = width_U * height_U * sizeof(float);
+    float * elements_U = U.elts;
+   
+    int v_len = b.length;
+    float * v_elts = b.elts;
+
+
+    size_t size_v = v_len * sizeof(float);
+
+    Matrix d_L = create_matrix(width_L, height_L, elements_L);
+    cudaMalloc(&d_L.elts, size_L);
+    cudaMemcpy(d_L.elts, L.elts, size_L, cudaMemcpyHostToDevice);
+
+    Matrix d_U = create_matrix(width_U, height_U, elements_U);
+    cudaMalloc(&d_U.elts, size_U);
+    cudaMemcpy(d_U.elts, U.elts, size_U, cudaMemcpyHostToDevice);
+
+    
+    Vector d_b = create_vector(v_len, v_elts); 
+    cudaMalloc(&d_b.elts, size_v);
+    cudaMemcpy(d_b.elts, b.elts, size_v, cudaMemcpyHostToDevice);
+
+
+    float * elts_r = (float *)malloc(size_v);
+    memset( elts_r, 0.0f, size_v);
+    Vector d_r = create_vector( v_len, elts_r);
+    cudaMalloc(&d_r.elts, size_v);
+
+    //invoke kernel 
+    fwd_bkwd_elimination<<<1, 1>>>(d_L, d_U, d_b, d_r);
+    
+    
+    
+    float * c_elts = (float *)malloc(size_v);
+    memset(c_elts, 0.0f, size_v);
+    Vector c = create_vector(v_len, c_elts);
+    cudaMemcpy(c.elts, d_r.elts, size_v , cudaMemcpyDeviceToHost);
+ 
+    //print L, U, b, 
+    print_matrix(L);
+    print_matrix(U);
+    print_vector(b);
+    print_vector(c);    
+
+    bool test = false;
+    if(vec_equal(e, c))
+        test = true;
+
+    free(c_elts);
+    free(elts_r);
+    cudaFree(d_b.elts);
+    cudaFree(d_L.elts);
+    cudaFree(d_U.elts);
+    cudaFree(d_r.elts);    
+
+    return test;
+
+   
+
+
+}
 
 
 
@@ -298,6 +405,9 @@ int main( void) {
     if(tt3) printf("PASS\n");
     else printf("FAIL \n");
 
+
+    // start cholesky tests
+    
     printf("cholesky matrix test \n");
     float c_elts_a1[9] = {25.0f ,15.0f, -5.0f, 15.0f, 18.0f, 0.0f, -5.0f, 0.0f, 11.0f};
     Matrix cA1 = create_matrix( 3, 3, c_elts_a1);
@@ -315,7 +425,34 @@ int main( void) {
     if(ct2) printf("PASS\n");
     else printf("FAIL \n");
     
+    // start fwd_bkwd_elimination test
+    
+    printf("fwd_bkwd eliminiation test \n");
+    float fb_elts_l1[9] = {2.0f, 0.0f, 0.0f, 6.0f, 1.0f, 0.0f, -8.0f, 5.0f, 3.0f};
+    Matrix fL1 = create_matrix(3,3, fb_elts_l1);
+    float fb_elts_u1[9] = {2.0f, 6.0f, -8.0f, 0.0f, 1.0f, 5.0f, 0.0f, 0.0f, 3.0f};
+    Matrix fU1 = create_matrix(3,3, fb_elts_u1);
+    float fb_elts_b1[3] = {0.0f, 6.0f, 39.0f};
+    Vector b1 = create_vector(3, fb_elts_b1);
+    float fb_elts_e1[3] = {1.0f, 1.0f, 1.0f};
+    Vector e1 = create_vector( 3, fb_elts_e1); 
+    bool fbt1 = mtx_fwd_bkwd_elimination_test(fL1, fU1, b1, e1);
+    if(fbt1) printf("PASS\n");
+    else printf("FAIL\n");
 
+    
+    float fb_elts_l2[9] = {5.0f, 0.0f, 0.0f, 3.0f, 3.0f, 0.0f, -1.0f, 1.0f, 3.0f};
+    Matrix fL2 = create_matrix(3,3, fb_elts_l2);
+    float fb_elts_u2[9] = {5.0f, 3.0f, -1.0f, 0.0f, 3.0f, 1.0f, 0.0f, 0.0f, 3.0f};
+    Matrix fU2 = create_matrix(3,3, fb_elts_u2);
+    float fb_elts_b2[3] = {-65.0f, -30.0f, 43.0f};
+    Vector b2 = create_vector(3, fb_elts_b2);
+    float fb_elts_e2[3] = {-2.0f, 0.0f, 3.0f};
+    Vector e2 = create_vector( 3, fb_elts_e2);
+    bool fbt2 = mtx_fwd_bkwd_elimination_test(fL2, fU2, b2, e2);
+    if(fbt2) printf("PASS\n");
+    else printf("FAIL\n");
+   
 
 
     return 0;
