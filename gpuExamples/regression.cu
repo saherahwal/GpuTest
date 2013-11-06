@@ -202,11 +202,59 @@ __global__ void cholesky( Matrix A, Matrix L){
 
 
 
+
+/*
+* Compute matrix transpose
+* This relies on the small side of matrix being less than maximum grid dimension
+*/
+__global__ void matrix_transpose(Matrix A, Matrix At){
+   
+   int row_block = blockIdx.x;
+   int col_block = blockIdx.y;   
+  
+
+   int row, _row, col, index;
+   
+   if ( A.m >= A.n ){
+       row = (row_block * BLOCK_SIZE + threadIdx.x);
+       _row = row * A.n;
+       col = col_block;
+       index = _row + col;
+       if (row < A.m){
+           float elt = A.elts[index];
+           At.elts[ col * A.m + row] = elt;
+       }            
+
+   } else {
+       row = row_block;
+       _row = row * A.n;
+       col = col_block * BLOCK_SIZE + threadIdx.x;
+       index = _row + col;//row_block * A.n + col_block * BLOCK_SIZE + threadIdx.x;
+       if ( col < A.n) {
+            float elt = A.elts[index];
+            At.elts[ col * A.m + row ] = elt;
+       }
+   }
+
+
+}
+
+
+
+
+
+
+
+
+
+
+
+
 /*
 * A: matrix to transpose
 * At: tranposed Matrix
 */
-__global__ void matrix_transpose(Matrix A, Matrix At){
+__global__ void matrix_transpose_x(Matrix A, Matrix At){
   
    //Block row and column
    int row_block = blockIdx.y;
@@ -241,28 +289,36 @@ __global__ void matrix_transpose(Matrix A, Matrix At){
    int col = threadIdx.x;
 
 
-   //if(threadIdx.x == 0 && threadIdx.y == 0){
-   //print_matrix(sub_at);
-   //}
-   //__syncthreads();
+   
    
    int nVal = (A.n > A.m)? A.n : A.m;
    
 
-   for(int j = 0; j < (nVal / BLOCK_SIZE); ++j){
+   for(int j = 0; j < ceil(nVal / (float)BLOCK_SIZE); ++j){
    
        __shared__ float tile[BLOCK_SIZE][BLOCK_SIZE+1];
        
        Matrix sub_a, sub_at;
+       //sub_a = get_sub_mtx(A, block_y, block_x);
+       //sub_at = get_sub_mtx(At, block_y, block_x);
+           
+              
        if( A.n >= A.m){
-           sub_a = get_sub_mtx(A, row_block, j);               
-           sub_at = get_sub_mtx(At, j , col_block);
+           sub_a = get_sub_mtx(A, block_y, j);               
+           sub_at = get_sub_mtx(At, j , block_x);
        } else {
-           sub_a = get_sub_mtx(A, j, col_block);
-           sub_at = get_sub_mtx(At, row_block , j);
-       }
-       
-
+           sub_a = get_sub_mtx(A, j, block_x);
+           sub_at = get_sub_mtx(At, block_y , j);
+       } 
+      
+       /*      
+       printf("this is iteration %f\n", j);
+       printf("sub matrix a\n");
+       print_matrix(sub_a);
+       printf("sub matrix at\n");
+       print_matrix(sub_at);*/
+         
+         
        for (int i = 0; i < BLOCK_SIZE; i+= BLOCK_SIZE){
            //tile[threadIdx.y + i][threadIdx.x] = A.elts[in_index + i*A.n];
            tile[row + i][col] = sub_a.elts[in_index + i*A.n];//get_elt(sub_a, row, in_index);
@@ -276,8 +332,7 @@ __global__ void matrix_transpose(Matrix A, Matrix At){
            //__syncthreads();
        }
        
-       __syncthreads();
-       
+       __syncthreads();      
          
    }
    //__syncthreads();

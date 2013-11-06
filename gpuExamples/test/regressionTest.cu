@@ -156,7 +156,11 @@ bool mtx_transpose_test(Matrix A, Matrix E){
     //dim3 dimBlock(BLOCK_SIZE, BLOCK_SIZE);
     //dim3 dimGrid( ceil(width_A / (float)BLOCK_SIZE), ceil(height_A / (float)BLOCK_SIZE));
 
-    dim3 dimGrid( height_A, ceil(width_A / (float)BLOCK_SIZE));
+    bool w_gt = width_A > height_A;
+    int grid_x = (w_gt)? height_A : ceil(height_A / (float)BLOCK_SIZE);
+    int grid_y = (w_gt)? ceil(width_A / (float)BLOCK_SIZE) : width_A;
+ 
+    dim3 dimGrid(grid_x, grid_y);//dim3 dimGrid( height_A, ceil(width_A / (float)BLOCK_SIZE));
     dim3 dimBlock( BLOCK_SIZE);
 
 
@@ -184,8 +188,7 @@ bool mtx_transpose_test(Matrix A, Matrix E){
     if(mtx_equal(E, C))
         test = true;
    
-    
-
+   
     free(elts_c);
     free(elts_r);
     cudaFree(d_A.elts);
