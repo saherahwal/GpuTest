@@ -153,8 +153,12 @@ bool mtx_transpose_test(Matrix A, Matrix E){
     size_t size_A = width_A * height_A * sizeof(float);
     float * elements_A = A.elts;
     
-    dim3 dimBlock(BLOCK_SIZE, BLOCK_SIZE);
-    dim3 dimGrid( width_A / BLOCK_SIZE, height_A / BLOCK_SIZE);
+    //dim3 dimBlock(BLOCK_SIZE, BLOCK_SIZE);
+    //dim3 dimGrid( ceil(width_A / (float)BLOCK_SIZE), ceil(height_A / (float)BLOCK_SIZE));
+
+    dim3 dimGrid( height_A, ceil(width_A / (float)BLOCK_SIZE));
+    dim3 dimBlock( BLOCK_SIZE);
+
 
     Matrix d_A = create_matrix(width_A, height_A, elements_A);
     cudaMalloc(&d_A.elts, size_A);
@@ -166,6 +170,7 @@ bool mtx_transpose_test(Matrix A, Matrix E){
     cudaMalloc(&d_R.elts, size_A);
 
     //invoke kernel 
+    //matrix_transpose<<<dimGrid, dimBlock>>>(d_A, d_R);
     matrix_transpose<<<dimGrid, dimBlock>>>(d_A, d_R);
 
     float * elts_c = (float *)malloc(size_A);
@@ -435,6 +440,25 @@ int main( void) {
     else printf("FAIL \n");
 
 
+    float t_elts_a4[4] = {1.0f ,2.0f, 7.0f, 9.0f};
+    Matrix tA4 = create_matrix( 2, 2, t_elts_a4);
+    float t_elts_e4[9] = {1.0f, 7.0f, 2.0f, 9.0f};
+    Matrix tE4 = create_matrix( 2, 2, t_elts_e4);
+    bool tt4 = mtx_transpose_test( tA4, tE4);
+    if(tt4) printf("PASS\n");
+    else printf("FAIL \n");
+
+    float t_elts_a5[25] = {1.0f ,2.0f, 3.0f, 4.0f, 5.0f, 1.0f ,2.0f, 3.0f, 4.0f, 5.0f, 1.0f ,2.0f, 3.0f, 4.0f, 5.0f, 1.0f ,2.0f, 3.0f, 4.0f, 5.0f, 1.0f ,2.0f, 3.0f, 4.0f, 5.0f};
+    Matrix tA5 = create_matrix( 5, 5, t_elts_a5);
+    float t_elts_e5[25] = {1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 2.0f, 2.0f, 2.0f, 2.0f, 2.0f, 3.0f, 3.0f, 3.0f, 3.0f, 3.0f, 4.0f, 4.0f, 4.0f, 4.0f, 4.0f, 5.0f, 5.0f, 5.0f, 5.0f, 5.0f};
+    Matrix tE5 = create_matrix( 5, 5, t_elts_e5);
+    bool tt5 = mtx_transpose_test( tA5, tE5);
+    if(tt5) printf("PASS\n");
+    else printf("FAIL \n");
+ 
+
+
+    
     // start cholesky tests
     
     printf("cholesky matrix test \n");
