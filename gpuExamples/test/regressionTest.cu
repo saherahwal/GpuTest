@@ -1,73 +1,5 @@
 #include "../regression.cu"
 
-#define EPSILON 0.000000005
-
-// Some Utility functions
-
-/**
-* generates matrix struct with width, height and float elements
-*/
-Matrix create_matrix( int width, int height, float * elements){
-     Matrix A;
-     A.n = A.stride = width;
-     A.m = height;
-     A.elts = elements;
-     return A;
-}
-
-/**
-* generates vector struct with length and elts)
-*/
-Vector create_vector(int length, float * elements){
-    Vector v;
-    v.length = length;
-    v.elts = elements;
-    return v;
-}
-
-
-/**
-* Returns true if two matrices are equal
-*/
-bool mtx_equal(Matrix A, Matrix B){
-     if(A.n != B.n || A.m != B.m){
-         return false;
-     }else{
-         int w = A.n;
-         int h = A.m;
-         for(int z = 0; z < w * h; z++){
-             float v1 = A.elts[z];
-             float v2 = B.elts[z];
-                              
-             if((v1 - v2) > EPSILON || (v1-v2) < -EPSILON ){
-                  return false;
-             }
-         }
-         return true;
-     }
-}
-
-
-
-/**
-* Returns true if two vectors are equal
-*/
-bool vec_equal(Vector a, Vector b){
-     if(b.length != a.length){
-          return false;
-     }else{
-         int len = b.length;
-         for(int z = 0; z < len; ++z){
-             float v1 = a.elts[z];
-             float v2 = b.elts[z];
-             
-             if((v1-v2) > EPSILON || (v1-v2) < -EPSILON){
-                 return false;
-             }
-         }
-         return true;
-     }
-}
 
 
 /**
@@ -396,7 +328,16 @@ int main( void) {
     if(t6) printf("PASS \n");
     else printf("FAIL\n");
 
-
+    
+    float elts_a7[30] = {1.0f, 2.0f, 2.0f, 5.0f, 2.0f, 3.0f, 2.0f, 2.0f, 3.0f, 4.0f, 3.0f, 5.0f, 4.0f, 6.0f, 5.0f, 5.0f, 5.0f, 6.0f, 5.0f, 7.0f, 6.0f, 8.0f, 7.0f, 6.0f, 8.0f, 4.0f, 8.0f, 9.0f, 9.0f, 8.0f};
+    Matrix A7 = create_matrix( 2, 15, elts_a7);
+    float elts_b7[30] = {1.0f, 2.0f, 2.0f, 2.0f, 3.0f, 3.0f, 4.0f, 5.0f, 5.0f, 5.0f, 6.0f, 7.0f, 8.0f, 8.0f, 9.0f, 2.0f, 5.0f, 3.0f, 2.0f, 4.0f, 5.0f, 6.0f, 5.0f, 6.0f, 7.0f, 8.0f, 6.0f, 4.0f, 9.0f, 8.0f};
+    Matrix B7 = create_matrix( 15, 2, elts_b7);
+    float elts_e7[4] = {416.0f, 429.0f, 429.0f, 490.0f};
+    Matrix E7 = create_matrix( 2, 2, elts_e7);
+    bool t7 = mtx_mult_test( B7, A7, E7);
+    if(t7) printf("PASS \n");
+    else printf("FAIL\n");
 
  
 
@@ -509,6 +450,19 @@ int main( void) {
     if(fbt2) printf("PASS\n");
     else printf("FAIL\n");
    
+    
+    //test regression 
+    float reg_elts_a1[45] = {1.0f, 1.0f, 2.0f, 1.0f, 2.0f, 5.0f, 1.0f, 2.0f, 3.0f, 1.0f, 2.0f, 2.0f, 1.0f,3.0f, 4.0f, 1.0f,3.0f, 5.0f, 1.0f,4.0f, 6.0f, 1.0f, 5.0f, 5.0f,1.0f,  5.0f, 6.0f, 1.0f, 5.0f, 7.0f, 1.0f, 6.0f, 8.0f, 1.0f, 7.0f, 6.0f, 1.0f, 8.0f, 4.0f, 1.0f, 8.0f, 9.0f, 1.0f, 9.0f, 8.0f};
+    Matrix reg_A1 = create_matrix(3, 15, reg_elts_a1);
+    float reg_elts_b1[15] = {2.0f, 1.0f, 2.0f, 2.0f, 1.0f, 3.0f, 2.0f, 3.0f, 4.0f, 3.0f, 4.0f, 2.0f, 4.0f, 3.0f, 4.0f};
+    Matrix reg_b1 = create_matrix(1, 15, reg_elts_b1);
+    linear_regression(reg_A1, reg_b1);
+
+
+
+
+
+
 
 
     return 0;

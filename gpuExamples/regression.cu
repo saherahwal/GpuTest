@@ -6,13 +6,14 @@
 #define BLOCK_SIZE 3
 #define TILE_DIM 3
 
+#define EPSILON 0.000000005
+
 const int N = 33 * 1024;
 const int threadsPerBlock = 256;
 const int blocksPerGrid = imin (32, (N + threadsPerBlock-1)/ threadsPerBlock);
 
 
 //const int BLOCK_SIZE = 3;
-
 
 
 // struct for storing matrices
@@ -28,6 +29,79 @@ typedef struct {
     int length;
     float *elts;
 } Vector;
+
+
+
+
+
+// Some Utility functions
+
+/**
+* generates matrix struct with width, height and float elements
+*/
+Matrix create_matrix( int width, int height, float * elements){
+     Matrix A;
+     A.n = A.stride = width;
+     A.m = height;
+     A.elts = elements;
+     return A;
+}
+
+/**
+* generates vector struct with length and elts)
+*/
+Vector create_vector(int length, float * elements){
+    Vector v;
+    v.length = length;
+    v.elts = elements;
+    return v;
+}
+
+
+
+/**
+* Returns true if two matrices are equal
+*/
+bool mtx_equal(Matrix A, Matrix B){
+     if(A.n != B.n || A.m != B.m){
+         return false;
+     }else{
+         int w = A.n;
+         int h = A.m;
+         for(int z = 0; z < w * h; z++){
+             float v1 = A.elts[z];
+             float v2 = B.elts[z];
+                              
+             if((v1 - v2) > EPSILON || (v1-v2) < -EPSILON ){
+                  return false;
+             }
+         }
+         return true;
+     }
+}
+
+
+
+/**
+* Returns true if two vectors are equal
+*/
+bool vec_equal(Vector a, Vector b){
+     if(b.length != a.length){
+          return false;
+     }else{
+         int len = b.length;
+         for(int z = 0; z < len; ++z){
+             float v1 = a.elts[z];
+             float v2 = b.elts[z];
+             
+             if((v1-v2) > EPSILON || (v1-v2) < -EPSILON){
+                 return false;
+             }
+         }
+         return true;
+     }
+}
+
 
 
 
@@ -236,17 +310,7 @@ __global__ void matrix_transpose(Matrix A, Matrix At){
        }
    }
 
-
 }
-
-
-
-
-
-
-
-
-
 
 
 
@@ -429,12 +493,274 @@ __global__ void matrix_multiply_matrix( Matrix A, Matrix B, Matrix C){
 
 
 /*
-* I_vals: matrix of independent variable values [ [x0,y0,z0...], [x1,y1,z1...], ...]
+* A: matrix of independent variable values [ [x0,y0,z0...], [x1,y1,z1...], ...]
 * b: vector of values corresponsing to elements in I_vals matrix. 
-* *r: pointer to result of regression - solution
+* 
 */
-__global__ void linear_regression( Matrix I_vals, Matrix b, float *r) {
+__host__ void linear_regression( Matrix A, Matrix b) {
+   
+    // The following code is to transpose the matrix A
+    // Invokes the matrix_transpose kernel
     
+    int width_A = A.n;
+    int height_A = A.m;
+    size_t size_A = width_A * height_A * sizeof(float);
+    float * elements_A = A.elts;
+         
+        
+    bool w_gt = width_A > height_A;
+    int grid_x = (w_gt)? height_A : ceil(height_A / (float)BLOCK_SIZE);
+    int grid_y = (w_gt)? ceil(width_A / (float)BLOCK_SIZE) : width_A;
+ 
+    dim3 dimGrid(grid_x, grid_y);//dim3 dimGrid( height_A, ceil(width_A / (float)BLOCK_SIZE));
+    dim3 dimBlock( BLOCK_SIZE);
+
+
+    Matrix d_A = create_matrix(width_A, height_A, elements_A);
+    cudaMalloc(&d_A.elts, size_A);
+    cudaMemcpy(d_A.elts, A.elts, size_A, cudaMemcpyHostToDevice); 
+    
+    float * elts_r = (float *)malloc(size_A);
+    memset( elts_r, 0.0f, size_A);
+    Matrix d_R = create_matrix(height_A, width_A, elts_r);
+    cudaMalloc(&d_R.elts, size_A);
+
+    //invoke tranpose kernel
+    matrix_transpose<<<dimGrid, dimBlock>>>(d_A, d_R);
+    
+    
+    float * elts_at = (float *)malloc(size_A);
+    Matrix At = create_matrix(height_A, width_A, elts_at);
+    cudaMemcpy(At.elts, d_R.elts, size_A, cudaMemcpyDeviceToHost);
+
+    printf("matrix A is \n");
+    print_matrix(A);
+    printf("matrix At is \n");
+    print_matrix(At);
+          
+   
+    //free(elts_c);
+    free(elts_r);
+    cudaFree(d_A.elts);
+    cudaFree(d_R.elts);
+    
+    // Now we need to multiple the matrices At * A (non-weigheted regression)
+    // invoke the matrix_multiply_matrix kernel
+    int width_At = At.n;
+    int height_At = At.m;
+    size_t size_At = size_A;
+    float * elements_At = At.elts;
+
+    dim3 dimBlock2(BLOCK_SIZE, BLOCK_SIZE);
+    dim3 dimGrid2( ceil(height_At / (float)dimBlock2.x), ceil(width_A/ (float)dimBlock2.y));
+
+    Matrix d_At = create_matrix(width_At, height_At, elements_At);
+    cudaMalloc(&d_At.elts, size_At);
+    cudaMemcpy(d_At.elts, At.elts, size_At, cudaMemcpyHostToDevice);
+
+    cudaMalloc(&d_A.elts, size_A);
+    cudaMemcpy(d_A.elts, A.elts, size_A, cudaMemcpyHostToDevice);
+
+    size_t size_C = width_A * height_At * sizeof(float);
+    float * elements_C = (float *)malloc(size_C);
+    memset(elements_C, 0.0f, size_C);
+    Matrix d_R2 = create_matrix(width_A, height_At, elements_C);
+    cudaMalloc(&d_R2.elts, size_C);
+    
+    // invoke matrix_multiply_matrix kernel
+    matrix_multiply_matrix<<<dimGrid2, dimBlock2>>>(d_At, d_A, d_R2);
+    
+    float * elts_c = (float *)malloc(size_C);
+    Matrix C = create_matrix(width_A, height_At, elts_c);
+    cudaMemcpy(C.elts, d_R2.elts, size_C, cudaMemcpyDeviceToHost);
+    
+    printf("matrix At is  \n");
+    print_matrix(At);
+    printf("matrix A is   \n");
+    print_matrix(A);
+    printf("matrix C = At * A is \n");
+    print_matrix(C);
+    
+    
+    free(elements_C);
+    cudaFree(d_R2.elts);
+    cudaFree(d_A.elts);
+    cudaFree(d_At.elts);
+
+    
+
+    // Next, multiply the matrix At (tranpose of A) by the vector b. (non-weighted)
+    // This also uses the matrix multiply kernel
+    
+    int width_b = b.n; // should be 1 (b is a vector)
+    int height_b = b.m;
+    size_t size_b = width_b * height_b * sizeof(float);
+    float * elements_b = b.elts;
+ 
+    dim3 dimBlock3(BLOCK_SIZE, BLOCK_SIZE);
+    dim3 dimGrid3(ceil(height_At / (float)dimBlock3.x), ceil(width_b / (float)dimBlock3.y));
+
+
+    cudaMalloc(&d_At.elts, size_At);
+    cudaMemcpy(d_At.elts, At.elts, size_At, cudaMemcpyHostToDevice);
+
+    Matrix d_b = create_matrix(width_b, height_b, elements_b);
+    cudaMalloc(&d_b.elts, size_b);
+    cudaMemcpy(d_b.elts, b.elts, size_b, cudaMemcpyHostToDevice);
+
+    size_t size_At_b = width_b * height_At * sizeof(float);
+    float * elements_At_b = (float *)malloc(size_At_b);
+    memset(elements_At_b, 0.0f, size_At_b);
+    Matrix d_At_b = create_matrix(width_b, height_At, elements_At_b);
+    cudaMalloc(&d_At_b.elts, size_At_b);      
+
+    //invoke matrix_multiply_matrix kernel (multiply by vector instead)
+    matrix_multiply_matrix<<<dimGrid3, dimBlock3>>>(d_At, d_b, d_At_b);
+
+    float * elts_at_b = (float *)malloc(size_At_b);
+    Vector vb = create_vector( width_b * height_At, elts_at_b);
+    cudaMemcpy( vb.elts, d_At_b.elts, size_At_b, cudaMemcpyDeviceToHost);
+
+    printf("printing matrix At\n");
+    print_matrix(At);
+    printf("printing matrix/vecor b\n");
+    print_matrix(b);
+    printf("vector result vb\n");
+    print_vector(vb);
+
+
+    
+    free(elements_At_b);
+    cudaFree(d_At.elts);
+    cudaFree(d_b.elts);
+    cudaFree(d_At_b.elts);
+    
+
+    // Compute Cholesky for At*A result
+    // invoke the cholesky kernel
+    int width_C = C.n;
+    int height_C = C.m;
+    
+    Matrix d_C = create_matrix(width_C, height_C, C.elts);
+    cudaMalloc(&d_C.elts, size_C);
+    cudaMemcpy(d_C.elts, C.elts, size_C, cudaMemcpyHostToDevice);   
+
+    elts_r = (float *)malloc(size_C);
+    memset(elts_r, 0.0f, size_C);
+    Matrix d_L = create_matrix(width_C, height_C, elts_r);
+    cudaMalloc(&d_L.elts, size_C);
+
+    //invoke the kernel here
+    cholesky<<<1, 1>>>(d_C, d_L);
+    
+    float * elts_l =  (float *)malloc(size_C);
+    Matrix L = create_matrix(width_C, height_C, elts_l);
+    cudaMemcpy(L.elts, d_L.elts, size_C, cudaMemcpyDeviceToHost);
+
+    printf("matrix C is \n");
+    print_matrix(C);
+    printf("cholesky result L \n");
+    print_matrix(L);
+
+    free(elts_r);
+    cudaFree(d_C.elts);
+    cudaFree(d_L.elts);
+
+    // compute Lt which is transpose of L matrix (cholesky result)
+    // invoke the matrix_transpose kernel 
+    int width_L = L.n;
+    int height_L = L.m;
+    size_t size_L = width_L * height_L * sizeof(float);
+    float * elements_L = L.elts;
+
+    grid_x = ceil(height_L / (float)BLOCK_SIZE);
+    grid_y = width_L;
+    dim3 dimGrid4(grid_x, grid_y);
+    dim3 dimBlock4(BLOCK_SIZE); 
+   
+    cudaMalloc(&d_L.elts, size_L);
+    cudaMemcpy(d_L.elts, L.elts, size_L, cudaMemcpyHostToDevice);
+
+    elts_r = (float *)malloc(size_L);
+    memset(elts_r, 0.0f, size_L);
+    Matrix d_U = create_matrix(height_L, width_L, elts_r);
+    cudaMalloc(&d_U.elts, size_L);
+
+    //invoke kernel
+    matrix_transpose<<<dimGrid4, dimBlock4>>>(d_L, d_U);
+   
+    float * elts_u = (float *)malloc(size_L);
+    Matrix U = create_matrix(height_L, width_L, elts_u);
+    cudaMemcpy(U.elts, d_U.elts, size_L, cudaMemcpyDeviceToHost);
+
+    printf("matrix L is \n");
+    print_matrix(L);
+    printf("matrix U is \n");
+    print_matrix(U);
+
+    free(elts_r);
+    cudaFree(d_L.elts);
+    cudaFree(d_U.elts);
+
+    // compute result Vector x by forward-backward elimination
+    // invoke forward-backward elimination kernel
+    
+    int width_U = U.n;
+    int height_U = U.m;
+    size_t size_U = width_U * height_U * sizeof(float);
+    float * elements_U = U.elts;
+     
+    int v_len = vb.length;
+    float * v_elts = vb.elts;
+
+    size_t size_v = v_len * sizeof(float);
+    
+    cudaMalloc(&d_L.elts, size_L);
+    cudaMemcpy(d_L.elts, L.elts, size_L, cudaMemcpyHostToDevice);
+
+    cudaMalloc(&d_U.elts, size_U);
+    cudaMemcpy(d_U.elts, U.elts, size_U, cudaMemcpyHostToDevice);
+
+    Vector d_vb = create_vector(v_len, v_elts);
+    cudaMalloc(&d_vb.elts, size_v);
+    cudaMemcpy(d_vb.elts, vb.elts, size_v, cudaMemcpyHostToDevice);
+
+    elts_r = (float *)malloc(size_v);
+    memset(elts_r, 0.0f, size_v);
+    Vector d_r = create_vector(v_len, elts_r);
+    cudaMalloc(&d_r.elts, size_v);
+
+
+    //invoke kernel
+    fwd_bkwd_elimination<<<1, 1>>>(d_L, d_U, d_vb, d_r);
+
+    float * elts_x = (float *)malloc(size_v);
+    memset(elts_x, 0.0f, size_v);
+    Vector x = create_vector(v_len, elts_x);
+    cudaMemcpy(x.elts, d_r.elts, size_v, cudaMemcpyDeviceToHost);
+
+
+    printf("matrix L\n");
+    print_matrix(L);
+    printf("matrix U\n");
+    print_matrix(U);
+    printf("vector vb\n");
+    print_vector(vb);
+    printf("vector x result \n");
+    print_vector(x);
+
+
+    free(elts_c);
+    free(elts_x);
+    free(elts_r);
+    free(elts_l);
+    free(elts_u);
+    free(elts_at_b);    
+    cudaFree(d_vb.elts);
+    cudaFree(d_L.elts);
+    cudaFree(d_U.elts);
+    cudaFree(d_r.elts);
+
 }
 
 
