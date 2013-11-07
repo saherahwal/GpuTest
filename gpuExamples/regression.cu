@@ -493,11 +493,11 @@ __global__ void matrix_multiply_matrix( Matrix A, Matrix B, Matrix C){
 
 
 /*
-* A: matrix of independent variable values [ [x0,y0,z0...], [x1,y1,z1...], ...]
-* b: vector of values corresponsing to elements in I_vals matrix. 
-* 
+* A: matrix of independent variable values [ [1,x0,y0,z0...], [1, x1,y1,z1...], ...] now it assumes you input the pre- ones (for computing constants)
+* b: vector of values corresponsing to elements in A matrix
+* return a vector representing result equation    C + Dx + Ey ...
 */
-__host__ void linear_regression( Matrix A, Matrix b) {
+__host__ Vector linear_regression( Matrix A, Matrix b) {
    
     // The following code is to transpose the matrix A
     // Invokes the matrix_transpose kernel
@@ -749,9 +749,9 @@ __host__ void linear_regression( Matrix A, Matrix b) {
     printf("vector x result \n");
     print_vector(x);
 
+    //Vector result = create_vector(x.length, x.elts);
 
-    free(elts_c);
-    free(elts_x);
+    free(elts_c);    
     free(elts_r);
     free(elts_l);
     free(elts_u);
@@ -761,11 +761,12 @@ __host__ void linear_regression( Matrix A, Matrix b) {
     cudaFree(d_U.elts);
     cudaFree(d_r.elts);
 
+    return x;
 }
 
 
 
-//TODO linear regression using dot product and inverse/LU/Choelsky
+
 
 
 

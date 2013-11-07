@@ -456,12 +456,8 @@ int main( void) {
     Matrix reg_A1 = create_matrix(3, 15, reg_elts_a1);
     float reg_elts_b1[15] = {2.0f, 1.0f, 2.0f, 2.0f, 1.0f, 3.0f, 2.0f, 3.0f, 4.0f, 3.0f, 4.0f, 2.0f, 4.0f, 3.0f, 4.0f};
     Matrix reg_b1 = create_matrix(1, 15, reg_elts_b1);
-    linear_regression(reg_A1, reg_b1);
-
-
-
-
-
+    Vector reg_x1 = linear_regression(reg_A1, reg_b1);
+    print_vector(reg_x1);
 
 
 
