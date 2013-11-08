@@ -1,11 +1,13 @@
 #include "../regression.cu"
 
 
+//#define BLOCK_SIZE 3
 
 /**
 * A, B: matrices to multiply. order is A * B
 * E is expected Result. 
 */
+template <int BLOCK_SIZE>
 bool mtx_mult_test(Matrix A, Matrix B, Matrix E){
     
            
@@ -41,7 +43,7 @@ bool mtx_mult_test(Matrix A, Matrix B, Matrix E){
     cudaMalloc(&d_R.elts, size_R); 
         
     //invoke kernel
-    matrix_multiply_matrix<<<dimGrid, dimBlock>>>(d_A, d_B, d_R);
+    matrix_multiply_matrix<BLOCK_SIZE><<<dimGrid, dimBlock>>>(d_A, d_B, d_R);
     
     float * elts_c = (float *)malloc(size_R);
     Matrix C = create_matrix( width_B, height_A, elts_c);
@@ -77,6 +79,7 @@ bool mtx_mult_test(Matrix A, Matrix B, Matrix E){
 * A: Matrix to transpose
 * E: expected transpose result
 */
+template <int BLOCK_SIZE>
 bool mtx_transpose_test(Matrix A, Matrix E){
 
        
@@ -107,7 +110,7 @@ bool mtx_transpose_test(Matrix A, Matrix E){
 
     //invoke kernel 
     //matrix_transpose<<<dimGrid, dimBlock>>>(d_A, d_R);
-    matrix_transpose<<<dimGrid, dimBlock>>>(d_A, d_R);
+    matrix_transpose<3><<<dimGrid, dimBlock>>>(d_A, d_R);
 
     float * elts_c = (float *)malloc(size_A);
     Matrix C = create_matrix(height_A, width_A, elts_c);
@@ -138,7 +141,6 @@ bool mtx_cholesky_test(Matrix A,  Matrix E){
     int height_A = A.m;
     size_t size_A = width_A * height_A * sizeof(float);
     float * elements_A = A.elts;
-
     
 
     Matrix d_A = create_matrix(width_A, height_A, elements_A);
@@ -170,7 +172,6 @@ bool mtx_cholesky_test(Matrix A,  Matrix E){
     cudaFree(d_R.elts);
 
     return test;
-
 
 
 }
@@ -255,6 +256,8 @@ bool mtx_fwd_bkwd_elimination_test( Matrix L, Matrix U, Vector b, Vector e){
 
 int main( void) {
 
+    const int block_size = 3;
+
     printf("run matrix multiply tests\n");
     
     // test 1
@@ -264,7 +267,7 @@ int main( void) {
     Matrix B = create_matrix( 3, 6, elts_b);
     float elts_e[9] = {15.0f, 15.0f, 18.0f, 15.0f, 30.0f, 39.0f, 18.0f, 39.0f, 51.0f};
     Matrix E = create_matrix( 3, 3, elts_e);    
-    bool t1 = mtx_mult_test( A, B, E);
+    bool t1 = mtx_mult_test<block_size>( A, B, E);
     if(t1) printf("PASS \n");
     else printf("FAIL\n");
     //free(A.elts);
@@ -281,7 +284,7 @@ int main( void) {
     //Matrix R2 = create_matrix( 3, 3, elts_r2);
     float elts_e2[9] = {1.0f, 3.0f, 2.0f, 4.0f, 6.0f, 6.0f, 9.0f, 5.0f, 10.f};
     Matrix E2 = create_matrix(3,3 , elts_e2);
-    bool t2 = mtx_mult_test( A2, B2, E2);
+    bool t2 = mtx_mult_test<block_size>( A2, B2, E2);
     if(t2) printf("PASS \n");
     else printf("FAIL \n");
     //free(A2.elts);
@@ -296,7 +299,7 @@ int main( void) {
     Matrix B3 = create_matrix( 3, 9, elts_b3);
     float elts_e3[9] = {16.0f, 4.0f, -10.0f, 4.0f, 10.0f, 0.0f, -10.0f, 0.0f, 15.f};
     Matrix E3 = create_matrix(3,3 , elts_e3);
-    bool t3 = mtx_mult_test( A3, B3, E3);
+    bool t3 = mtx_mult_test<block_size>( A3, B3, E3);
     if(t3) printf("PASS \n");
     else printf("FAIL \n");
     //free(A3.elts);
@@ -313,7 +316,7 @@ int main( void) {
     Matrix B4 = create_matrix( 2, 2, elts_b4);
     float elts_e4[4] = {7.0f, 10.0f, 15.0f, 22.0f};
     Matrix E4 = create_matrix( 2, 2, elts_e4);
-    bool t4 = mtx_mult_test( A4, B4, E4);
+    bool t4 = mtx_mult_test<block_size>( A4, B4, E4);
     if(t4) printf("PASS \n");
     else printf("FAIL\n");
 
@@ -324,7 +327,7 @@ int main( void) {
     Matrix B6 = create_matrix( 1, 4, elts_b6);
     float elts_e6[4] = {3.0f, 2.0f};
     Matrix E6 = create_matrix( 1, 2, elts_e6);
-    bool t6 = mtx_mult_test( A6, B6, E6);
+    bool t6 = mtx_mult_test<block_size>( A6, B6, E6);
     if(t6) printf("PASS \n");
     else printf("FAIL\n");
 
@@ -335,7 +338,7 @@ int main( void) {
     Matrix B7 = create_matrix( 15, 2, elts_b7);
     float elts_e7[4] = {416.0f, 429.0f, 429.0f, 490.0f};
     Matrix E7 = create_matrix( 2, 2, elts_e7);
-    bool t7 = mtx_mult_test( B7, A7, E7);
+    bool t7 = mtx_mult_test<block_size>( B7, A7, E7);
     if(t7) printf("PASS \n");
     else printf("FAIL\n");
 
@@ -348,7 +351,7 @@ int main( void) {
     Matrix B5 = create_matrix( 1, 3, elts_b5); 
     float elts_e5[3] = {0.0f, 1.0f, 1.0f};
     Matrix E5 = create_matrix( 1, 3, elts_e5);
-    bool t5 = mtx_mult_test( A5, B5, E5);
+    bool t5 = mtx_mult_test<block_size>( A5, B5, E5);
     if(t5) printf("PASS \n");
     else printf("FAIL\n");
 
@@ -362,7 +365,7 @@ int main( void) {
     Matrix tA = create_matrix( 3, 3, t_elts_a1);
     float t_elts_e1[9] = {1.0f, 0.0f, -1.0f, 2.0f, -5.0f, 9.0f, 3.0f, 1.0f, -1.0f};
     Matrix tE = create_matrix( 3, 3, t_elts_e1);
-    bool tt1 = mtx_transpose_test( tA, tE);
+    bool tt1 = mtx_transpose_test<block_size>( tA, tE);
     if(tt1) printf("PASS\n");
     else printf("FAIL \n");
 
@@ -370,7 +373,7 @@ int main( void) {
     Matrix tA1 = create_matrix( 6, 3, t_elts_a2);
     float t_elts_e2[18] = {1.0f, 3.0f, 4.0f, 1.0f, 3.0f, 4.0f, 1.0f, 3.0f, 4.0f, 2.0f, 1.0f, 1.0f, 2.0f, 1.0f, 1.0f, 2.0f, 1.0f, 1.0f};
     Matrix tE1 = create_matrix( 3, 6, t_elts_e2);
-    bool tt2 = mtx_transpose_test( tA1, tE1);
+    bool tt2 = mtx_transpose_test<block_size>( tA1, tE1);
     if(tt2) printf("PASS\n");
     else printf("FAIL \n");
 
@@ -379,7 +382,7 @@ int main( void) {
     Matrix tA3 = create_matrix( 3, 6, t_elts_a3);
     float t_elts_e3[18] = {1.0f, 2.0f, 3.0f, 1.0f, 4.0f, 1.0f, 1.0f, 2.0f, 3.0f, 1.0f, 4.0f, 1.0f, 1.0f, 2.0f, 3.0f, 1.0f, 4.0f, 1.0f};
     Matrix tE3 = create_matrix( 6, 3, t_elts_e3);
-    bool tt3 = mtx_transpose_test( tA3, tE3);
+    bool tt3 = mtx_transpose_test<block_size>( tA3, tE3);
     if(tt3) printf("PASS\n");
     else printf("FAIL \n");
 
@@ -388,7 +391,7 @@ int main( void) {
     Matrix tA4 = create_matrix( 2, 2, t_elts_a4);
     float t_elts_e4[9] = {1.0f, 7.0f, 2.0f, 9.0f};
     Matrix tE4 = create_matrix( 2, 2, t_elts_e4);
-    bool tt4 = mtx_transpose_test( tA4, tE4);
+    bool tt4 = mtx_transpose_test<block_size>( tA4, tE4);
     if(tt4) printf("PASS\n");
     else printf("FAIL \n");
 
@@ -396,7 +399,7 @@ int main( void) {
     Matrix tA5 = create_matrix( 5, 5, t_elts_a5);
     float t_elts_e5[25] = {1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 2.0f, 2.0f, 2.0f, 2.0f, 2.0f, 3.0f, 3.0f, 3.0f, 3.0f, 3.0f, 4.0f, 4.0f, 4.0f, 4.0f, 4.0f, 5.0f, 5.0f, 5.0f, 5.0f, 5.0f};
     Matrix tE5 = create_matrix( 5, 5, t_elts_e5);
-    bool tt5 = mtx_transpose_test( tA5, tE5);
+    bool tt5 = mtx_transpose_test<block_size>( tA5, tE5);
     if(tt5) printf("PASS\n");
     else printf("FAIL \n");
  
@@ -456,7 +459,7 @@ int main( void) {
     Matrix reg_A1 = create_matrix(3, 15, reg_elts_a1);
     float reg_elts_b1[15] = {2.0f, 1.0f, 2.0f, 2.0f, 1.0f, 3.0f, 2.0f, 3.0f, 4.0f, 3.0f, 4.0f, 2.0f, 4.0f, 3.0f, 4.0f};
     Matrix reg_b1 = create_matrix(1, 15, reg_elts_b1);
-    Vector reg_x1 = linear_regression(reg_A1, reg_b1);
+    Vector reg_x1 = linear_regression<block_size>(reg_A1, reg_b1);
     print_vector(reg_x1);
 
 

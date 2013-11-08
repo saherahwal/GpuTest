@@ -3,7 +3,7 @@
 
 
 #define imin(a,b) (a<b?a:b)
-#define BLOCK_SIZE 3
+//#define BLOCK_SIZE 3
 #define TILE_DIM 3
 
 #define EPSILON 0.000000005
@@ -29,7 +29,6 @@ typedef struct {
     int length;
     float *elts;
 } Vector;
-
 
 
 
@@ -168,6 +167,7 @@ __device__ void dot( float *a, float *b, float *c){
 * row, column: row and column to start at
 * return matrix X which is sub matrix of S
 */
+template <int BLOCK_SIZE>
 __host__ __device__ Matrix get_sub_mtx( const Matrix S, int row, int col){
     Matrix X;
     X.n = BLOCK_SIZE;
@@ -281,6 +281,7 @@ __global__ void cholesky( Matrix A, Matrix L){
 * Compute matrix transpose
 * This relies on the small side of matrix being less than maximum grid dimension
 */
+template <int BLOCK_SIZE>
 __global__ void matrix_transpose(Matrix A, Matrix At){
    
    int row_block = blockIdx.x;
@@ -318,6 +319,7 @@ __global__ void matrix_transpose(Matrix A, Matrix At){
 * A: matrix to transpose
 * At: tranposed Matrix
 */
+template <int BLOCK_SIZE>
 __global__ void matrix_transpose_x(Matrix A, Matrix At){
   
    //Block row and column
@@ -368,11 +370,11 @@ __global__ void matrix_transpose_x(Matrix A, Matrix At){
            
               
        if( A.n >= A.m){
-           sub_a = get_sub_mtx(A, block_y, j);               
-           sub_at = get_sub_mtx(At, j , block_x);
+           sub_a = get_sub_mtx<BLOCK_SIZE>(A, block_y, j);               
+           sub_at = get_sub_mtx<BLOCK_SIZE>(At, j , block_x);
        } else {
-           sub_a = get_sub_mtx(A, j, block_x);
-           sub_at = get_sub_mtx(At, block_y , j);
+           sub_a = get_sub_mtx<BLOCK_SIZE>(A, j, block_x);
+           sub_at = get_sub_mtx<BLOCK_SIZE>(At, block_y , j);
        } 
       
        /*      
@@ -421,6 +423,7 @@ __global__ void matrix_transpose_x(Matrix A, Matrix At){
 * A,B: matrices to multiply
 * C: resulting matrix of A*B
 */
+template <int BLOCK_SIZE>
 __global__ void matrix_multiply_matrix( Matrix A, Matrix B, Matrix C){
 
     //Block row and column
@@ -428,7 +431,7 @@ __global__ void matrix_multiply_matrix( Matrix A, Matrix B, Matrix C){
     int col_block = blockIdx.x;
 
     //each thread block computes submatrix of dimensions BLOCK_SIZE*BLOCK_SIZE
-    Matrix sub_c = get_sub_mtx(C, row_block, col_block);
+    Matrix sub_c = get_sub_mtx<BLOCK_SIZE>(C, row_block, col_block);
      
     
     // each thread computes one element of sub matrix sub_c
@@ -446,8 +449,8 @@ __global__ void matrix_multiply_matrix( Matrix A, Matrix B, Matrix C){
     for (int i = 0 ; i < ceil(A.n / (float)BLOCK_SIZE); ++i){
         
         // get sub-mtx sub_a of A and sub_b of B
-        Matrix sub_a = get_sub_mtx(A, row_block, i);
-        Matrix sub_b = get_sub_mtx(B, i, col_block); 
+        Matrix sub_a = get_sub_mtx<BLOCK_SIZE>(A, row_block, i);
+        Matrix sub_b = get_sub_mtx<BLOCK_SIZE>(B, i, col_block); 
                 
         
         //shared memory to fill sub matrices 
@@ -497,6 +500,7 @@ __global__ void matrix_multiply_matrix( Matrix A, Matrix B, Matrix C){
 * b: vector of values corresponsing to elements in A matrix
 * return a vector representing result equation    C + Dx + Ey ...
 */
+template <int BLOCK_SIZE>
 __host__ Vector linear_regression( Matrix A, Matrix b) {
    
     // The following code is to transpose the matrix A
@@ -526,7 +530,7 @@ __host__ Vector linear_regression( Matrix A, Matrix b) {
     cudaMalloc(&d_R.elts, size_A);
 
     //invoke tranpose kernel
-    matrix_transpose<<<dimGrid, dimBlock>>>(d_A, d_R);
+    matrix_transpose<BLOCK_SIZE><<<dimGrid, dimBlock>>>(d_A, d_R);
     
     
     float * elts_at = (float *)malloc(size_A);
@@ -568,7 +572,7 @@ __host__ Vector linear_regression( Matrix A, Matrix b) {
     cudaMalloc(&d_R2.elts, size_C);
     
     // invoke matrix_multiply_matrix kernel
-    matrix_multiply_matrix<<<dimGrid2, dimBlock2>>>(d_At, d_A, d_R2);
+    matrix_multiply_matrix<BLOCK_SIZE><<<dimGrid2, dimBlock2>>>(d_At, d_A, d_R2);
     
     float * elts_c = (float *)malloc(size_C);
     Matrix C = create_matrix(width_A, height_At, elts_c);
@@ -615,7 +619,7 @@ __host__ Vector linear_regression( Matrix A, Matrix b) {
     cudaMalloc(&d_At_b.elts, size_At_b);      
 
     //invoke matrix_multiply_matrix kernel (multiply by vector instead)
-    matrix_multiply_matrix<<<dimGrid3, dimBlock3>>>(d_At, d_b, d_At_b);
+    matrix_multiply_matrix<BLOCK_SIZE><<<dimGrid3, dimBlock3>>>(d_At, d_b, d_At_b);
 
     float * elts_at_b = (float *)malloc(size_At_b);
     Vector vb = create_vector( width_b * height_At, elts_at_b);
@@ -623,7 +627,7 @@ __host__ Vector linear_regression( Matrix A, Matrix b) {
 
     printf("printing matrix At\n");
     print_matrix(At);
-    printf("printing matrix/vecor b\n");
+    printf("printing matrix/vector b\n");
     print_matrix(b);
     printf("vector result vb\n");
     print_vector(vb);
@@ -687,7 +691,7 @@ __host__ Vector linear_regression( Matrix A, Matrix b) {
     cudaMalloc(&d_U.elts, size_L);
 
     //invoke kernel
-    matrix_transpose<<<dimGrid4, dimBlock4>>>(d_L, d_U);
+    matrix_transpose<BLOCK_SIZE><<<dimGrid4, dimBlock4>>>(d_L, d_U);
    
     float * elts_u = (float *)malloc(size_L);
     Matrix U = create_matrix(height_L, width_L, elts_u);
@@ -763,16 +767,6 @@ __host__ Vector linear_regression( Matrix A, Matrix b) {
 
     return x;
 }
-
-
-
-
-
-
-
-
-
-
 
 
 
