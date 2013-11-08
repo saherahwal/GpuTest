@@ -3,9 +3,9 @@
 
 
 #define imin(a,b) (a<b?a:b)
-//#define BLOCK_SIZE 3
-#define TILE_DIM 3
+#define imax(a,b) (a>b?a:b)
 
+#define TILE_DIM 3
 #define EPSILON 0.000000005
 
 const int N = 33 * 1024;
@@ -189,6 +189,35 @@ __device__ void set_elt(Matrix A, int row, int col, float value){
      //printf("setting row*A.stride + col (%d) to value (%f)\n", row*A.stride + col, value);         
      A.elts[row * A.stride + col] = value;
 }
+
+
+
+/*
+* M: matrix of rows of data points (for out use-case this is a column matrix)
+* weights: Vector of weights to apply for each row
+* R: matrix result of applying weights
+*/
+__global__ void apply_weights( Matrix M, Vector weights, Matrix R){
+
+    // only use one dimensional block size
+    int b_id = blockIdx.x;
+    int t_id = threadIdx.x; // each thread takes care of one data point (i.e one row).
+
+    int index = b_id * gridDim.x + t_id;
+      
+    if(index < (M.m * M.n)) {        
+        int row = (index / M.m);
+        int col = (index % M.m);
+        int val = get_elt( M, row, col);
+        int newVal = val * weights.elts[row]; //multiply by the appropriate weight
+        set_elt( R, row, col, newVal);  
+    }
+}
+
+
+
+
+
 
 
 /*

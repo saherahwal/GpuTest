@@ -247,10 +247,61 @@ bool mtx_fwd_bkwd_elimination_test( Matrix L, Matrix U, Vector b, Vector e){
 
     return test;
 
-   
-
 
 }
+
+//template <int BLOCK_SIZE>
+bool mtx_apply_weights_test( Matrix M, Vector weights, Matrix E){
+    
+    size_t size_M = M.n * M.m * sizeof(float);
+    size_t size_w = weights.length * sizeof(float);    
+
+    Matrix d_M = create_matrix( M.n, M.m, M.elts);
+    cudaMalloc(&d_M.elts, size_M);      
+    cudaMemcpy(d_M.elts, M.elts, size_M, cudaMemcpyHostToDevice);
+
+    Vector d_w = create_vector( weights.length, weights.elts);
+    cudaMalloc(&d_w.elts, size_M);
+    cudaMemcpy(d_w.elts, weights.elts, size_w, cudaMemcpyHostToDevice);
+
+    float * r_elts = (float *)malloc(size_M);
+    Matrix d_R = create_matrix( M.n, M.m, r_elts);
+    cudaMalloc(&d_R.elts, size_M);
+    
+    //const int blocks_in_grid = imax( 3, ceil( M.m * M.n /(float)256));
+    const int blocks_in_grid = ceil(M.m*M.n / float(256));
+    //printf("b per grid is %d \n", blocks_in_grid);    
+
+    //invoke 
+    apply_weights<<<blocks_in_grid, 256>>>(d_M, d_w, d_R);
+
+    float * c_elts = (float *)malloc(size_M);
+    memset(c_elts, 0.0f, size_M);
+    Matrix C = create_matrix(M.n, M.m, c_elts);
+    cudaMemcpy(C.elts, d_R.elts, size_M, cudaMemcpyDeviceToHost); 
+
+    //print M, weights, and E
+    print_matrix(M);
+    print_vector(weights);
+    print_matrix(C);
+
+    bool test = false;
+    if (mtx_equal(C, E))
+        test = true;
+
+    free(c_elts);
+    free(r_elts);
+    cudaFree(d_R.elts);
+    cudaFree(d_w.elts);
+    cudaFree(d_M.elts);
+   
+    return test; 
+
+}
+
+
+
+
 
 
 
@@ -453,6 +504,24 @@ int main( void) {
     if(fbt2) printf("PASS\n");
     else printf("FAIL\n");
    
+
+    //test apply_weights
+    printf("test apply weights to matrices\n");
+     
+    float aw_elts_a1[9] = {1.0f, 2.0f, 3.0f, 1.0f, 2.0f, 3.0f, 1.0f, 2.0f, 3.0f};
+    Matrix aw_a1 = create_matrix(3, 3, aw_elts_a1);
+    float aw_elts_v1[3] = {5.0f, 1.0f, 9.0f};
+    Vector aw_v1 = create_vector(3, aw_elts_v1);
+    float aw_elts_r1[9] = {5.0f, 10.0f, 15.0f, 1.0f, 2.0f, 3.0f, 9.0f, 18.0f, 27.0f};
+    Matrix aw_e1 = create_matrix(3, 3, aw_elts_r1);
+    bool aw_t1 = mtx_apply_weights_test( aw_a1, aw_v1, aw_e1);
+    if(aw_t1) printf("PASS\n");
+    else printf("FAIL\n");
+
+
+
+
+
     
     //test regression 
     float reg_elts_a1[45] = {1.0f, 1.0f, 2.0f, 1.0f, 2.0f, 5.0f, 1.0f, 2.0f, 3.0f, 1.0f, 2.0f, 2.0f, 1.0f,3.0f, 4.0f, 1.0f,3.0f, 5.0f, 1.0f,4.0f, 6.0f, 1.0f, 5.0f, 5.0f,1.0f,  5.0f, 6.0f, 1.0f, 5.0f, 7.0f, 1.0f, 6.0f, 8.0f, 1.0f, 7.0f, 6.0f, 1.0f, 8.0f, 4.0f, 1.0f, 8.0f, 9.0f, 1.0f, 9.0f, 8.0f};
